@@ -1,0 +1,21 @@
+---
+Name: cache-controls
+---
+SilverStripe\SiteConfig\SiteConfig:
+  extensions:
+    - Edwilde\CacheControls\Extensions\CacheControlSiteConfigExtension
+
+SilverStripe\CMS\Model\SiteTree:
+  extensions:
+    - Edwilde\CacheControls\Extensions\CacheControlPageExtension
+
+---
+Name: cache-controls-middleware
+After:
+  - '#requestprocessors'
+---
+SilverStripe\Core\Injector\Injector:
+  SilverStripe\Control\Director:
+    properties:
+      Middlewares:
+        CacheControlMiddleware: '%$Edwilde\CacheControls\Middleware\CacheControlMiddleware'

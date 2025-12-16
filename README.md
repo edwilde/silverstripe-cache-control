@@ -120,3 +120,18 @@ Ed Wilde <edwilde@example.com>
 ## Contributing
 
 Contributions are welcome! Please submit pull requests with tests for any new features.
+
+## Development with Symlinks
+
+If you're developing this module and using a symlink in a SilverStripe project:
+
+1. The module's `vendor/` directory should be excluded from SilverStripe's class manifest
+2. Either remove the vendor directory from the module when symlinking:
+   ```bash
+   cd ~/Sites/modules/silverstripe-cache-controls
+   rm -rf vendor/
+   ```
+
+3. Or configure your project to exclude the symlinked vendor directory
+
+This prevents class conflicts when SilverStripe scans for classes.

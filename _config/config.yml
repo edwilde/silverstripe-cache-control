@@ -15,8 +15,6 @@ SilverStripe\CMS\Controllers\ContentController:
 
 ---
 Name: cache-controls-middleware
-Before:
-  - '#coresecurity'
 ---
 SilverStripe\Core\Injector\Injector:
   SilverStripe\Control\Director:

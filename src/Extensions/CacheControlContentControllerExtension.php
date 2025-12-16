@@ -29,9 +29,11 @@ class CacheControlContentControllerExtension extends Extension
             $maxAge = (int)$matches[1];
         }
         
-        // Use HTTPCacheControlMiddleware to enable caching
+        // Disable default no-cache behavior
         $cacheControl = \SilverStripe\Control\Middleware\HTTPCacheControlMiddleware::singleton();
+        $cacheControl->disableCache(false); // DISABLE the no-cache
         
+        // Enable caching
         if (strpos($header, 'private') !== false) {
             $cacheControl->privateCache();
         } else {
@@ -48,8 +50,6 @@ class CacheControlContentControllerExtension extends Extension
         
         if (strpos($header, 'no-store') !== false) {
             $cacheControl->disableCache(true);
-        } else {
-            $cacheControl->enableCache(true);
         }
     }
 }

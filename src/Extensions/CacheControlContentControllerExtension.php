@@ -7,7 +7,7 @@ use SilverStripe\Core\Extension;
 
 class CacheControlContentControllerExtension extends Extension
 {
-    public function onAfterInit()
+    public function afterCallActionHandler($request, $action, $result)
     {
         $page = $this->owner->data();
         
@@ -29,27 +29,26 @@ class CacheControlContentControllerExtension extends Extension
             $maxAge = (int)$matches[1];
         }
         
-        // Disable default no-cache behavior
+        // Get the singleton and FORCE our settings
         $cacheControl = \SilverStripe\Control\Middleware\HTTPCacheControlMiddleware::singleton();
-        $cacheControl->disableCache(false); // DISABLE the no-cache
         
-        // Enable caching
         if (strpos($header, 'private') !== false) {
-            $cacheControl->privateCache();
+            $cacheControl->privateCache(true); // Force private
         } else {
-            $cacheControl->publicCache();
+            $cacheControl->publicCache(true, $maxAge); // Force public with max-age
         }
         
-        if ($maxAge > 0) {
-            $cacheControl->setMaxAge($maxAge);
+        // Remove must-revalidate if not in our header
+        if (strpos($header, 'must-revalidate') === false) {
+            $cacheControl->removeStateDirective('public', 'must-revalidate');
+            $cacheControl->removeStateDirective('private', 'must-revalidate');
+        } else {
+            $cacheControl->setStateDirective('public', 'must-revalidate', true);
         }
         
-        if (strpos($header, 'must-revalidate') !== false) {
-            $cacheControl->setMustRevalidate(true);
-        }
-        
+        // Handle no-store
         if (strpos($header, 'no-store') !== false) {
-            $cacheControl->disableCache(true);
+            $cacheControl->setStateDirective('disabled', 'no-store', true);
         }
     }
 }

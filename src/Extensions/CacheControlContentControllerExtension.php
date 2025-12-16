@@ -15,10 +15,8 @@ class CacheControlContentControllerExtension extends Extension
             $cacheHeader = $page->getCacheControlHeader();
             
             if ($cacheHeader) {
-                HTTP::set_cache_age(0);
-                HTTP::add_cache_headers($this->owner->getResponse());
-                $this->owner->getResponse()->removeHeader('Cache-Control');
-                $this->owner->getResponse()->addHeader('Cache-Control', $cacheHeader);
+                $response = $this->owner->getResponse();
+                $response->addHeader('Cache-Control', $cacheHeader);
             }
         }
     }

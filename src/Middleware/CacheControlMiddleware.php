@@ -19,10 +19,6 @@ class CacheControlMiddleware implements HTTPMiddleware
             return $response;
         }
 
-        if ($response->getHeader('Cache-Control')) {
-            return $response;
-        }
-
         $page = $this->getCurrentPage();
         
         if (!$page || !$page->hasMethod('getCacheControlHeader')) {
@@ -32,6 +28,7 @@ class CacheControlMiddleware implements HTTPMiddleware
         $cacheHeader = $page->getCacheControlHeader();
         
         if ($cacheHeader) {
+            $response->removeHeader('Cache-Control');
             $response->addHeader('Cache-Control', $cacheHeader);
         }
 

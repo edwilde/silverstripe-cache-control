@@ -4,10 +4,10 @@ namespace Edwilde\CacheControls\Middleware;
 
 use SilverStripe\CMS\Controllers\ContentController;
 use SilverStripe\CMS\Model\SiteTree;
+use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Control\Middleware\HTTPMiddleware;
-use SilverStripe\Core\Injector\Injector;
 
 class CacheControlMiddleware implements HTTPMiddleware
 {
@@ -38,9 +38,9 @@ class CacheControlMiddleware implements HTTPMiddleware
     private function getCurrentPage()
     {
         try {
-            $controller = Injector::inst()->get(ContentController::class);
+            $controller = Controller::curr();
             
-            if ($controller && $controller->hasMethod('data')) {
+            if ($controller instanceof ContentController && $controller->hasMethod('data')) {
                 $page = $controller->data();
                 
                 if ($page instanceof SiteTree && $page->exists()) {

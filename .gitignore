@@ -1,0 +1,34 @@
+# Dependencies
+vendor/
+composer.lock
+
+# SilverStripe
+public/_resources/
+public/assets/
+.env
+.htaccess
+
+# Build artifacts
+.graphql-generated/
+.manifest/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.phpunit.result.cache
+coverage/
+
+# Behat
+behat.yml
+
+# App directory (for testing only)
+app/

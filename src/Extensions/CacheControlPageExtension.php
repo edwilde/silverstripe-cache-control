@@ -2,7 +2,6 @@
 
 namespace Edwilde\CacheControls\Extensions;
 
-use Edwilde\CacheControls\Traits\CacheControlTrait;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\HeaderField;
@@ -14,7 +13,6 @@ use SilverStripe\SiteConfig\SiteConfig;
 
 class CacheControlPageExtension extends DataExtension
 {
-    use CacheControlTrait;
     private static $db = [
         'OverrideCacheControl' => 'Boolean',
         'EnableCacheControl' => 'Boolean',
@@ -121,7 +119,30 @@ class CacheControlPageExtension extends DataExtension
 
     private function getPageCacheControlHeader()
     {
-        return $this->owner->buildCacheControlHeader();
+        if (!$this->owner->EnableCacheControl) {
+            return null;
+        }
+
+        $directives = [];
+
+        if ($this->owner->EnableNoStore) {
+            $directives[] = 'no-store';
+        }
+
+        if ($this->owner->CacheType) {
+            $directives[] = $this->owner->CacheType;
+        }
+
+        if ($this->owner->EnableMaxAge && !$this->owner->EnableNoStore) {
+            $maxAge = (int)$this->owner->MaxAge ?: 120;
+            $directives[] = 'max-age=' . $maxAge;
+        }
+
+        if ($this->owner->EnableMustRevalidate) {
+            $directives[] = 'must-revalidate';
+        }
+
+        return !empty($directives) ? implode(', ', $directives) : null;
     }
 
     public function getEffectiveCacheControlDescription()

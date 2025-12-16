@@ -28,10 +28,7 @@
     "autoload-dev": {
         "psr-4": {
             "Edwilde\\CacheControls\\Tests\\": "tests/"
-        },
-        "classmap": [
-            "app/src"
-        ]
+        }
     },
     "extra": {
         "expose": [

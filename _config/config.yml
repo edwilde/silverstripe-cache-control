@@ -9,6 +9,10 @@ SilverStripe\CMS\Model\SiteTree:
   extensions:
     - Edwilde\CacheControls\Extensions\CacheControlPageExtension
 
+SilverStripe\CMS\Controllers\ContentController:
+  extensions:
+    - Edwilde\CacheControls\Extensions\CacheControlContentControllerExtension
+
 ---
 Name: cache-controls-middleware
 After:

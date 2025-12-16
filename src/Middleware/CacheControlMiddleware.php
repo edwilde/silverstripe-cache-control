@@ -19,7 +19,8 @@ class CacheControlMiddleware implements HTTPMiddleware
             return $response;
         }
 
-        $page = $this->getCurrentPage();
+        // Try to get page after request has been processed
+        $page = $this->getCurrentPage($request);
         
         if (!$page || !$page->hasMethod('getCacheControlHeader')) {
             return $response;
@@ -35,10 +36,11 @@ class CacheControlMiddleware implements HTTPMiddleware
         return $response;
     }
 
-    private function getCurrentPage()
+    private function getCurrentPage(HTTPRequest $request)
     {
         try {
-            $controller = Controller::curr();
+            // Try to get current controller after request has been processed
+            $controller = Controller::has_curr() ? Controller::curr() : null;
             
             if ($controller instanceof ContentController && $controller->hasMethod('data')) {
                 $page = $controller->data();
@@ -48,7 +50,7 @@ class CacheControlMiddleware implements HTTPMiddleware
                 }
             }
         } catch (\Exception $e) {
-            // Controller not yet initialized or not a content page
+            // Controller not available
         }
         
         return null;

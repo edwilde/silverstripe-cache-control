@@ -22,9 +22,24 @@ class CacheControlMiddleware implements HTTPMiddleware
         // Check if controller set a custom cache header
         $cacheHeader = $request->getHeader('X-Cache-Control-Override');
         
+        // Debug logging
+        file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
+            "[%s] Override header: %s, Response header before: %s\n",
+            date('Y-m-d H:i:s'),
+            $cacheHeader ?: 'NONE',
+            $response->getHeader('Cache-Control') ?: 'NONE'
+        ), FILE_APPEND);
+        
         if ($cacheHeader) {
             $response->removeHeader('Cache-Control');
             $response->addHeader('Cache-Control', $cacheHeader);
+            
+            // Debug: confirm what we set
+            file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
+                "[%s] AFTER SET: %s\n",
+                date('Y-m-d H:i:s'),
+                $response->getHeader('Cache-Control') ?: 'NONE'
+            ), FILE_APPEND);
         }
 
         return $response;

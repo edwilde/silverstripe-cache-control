@@ -19,14 +19,8 @@ class CacheControlMiddleware implements HTTPMiddleware
             return $response;
         }
 
-        // Try to get page after request has been processed
-        $page = $this->getCurrentPage($request);
-        
-        if (!$page || !$page->hasMethod('getCacheControlHeader')) {
-            return $response;
-        }
-
-        $cacheHeader = $page->getCacheControlHeader();
+        // Check if controller set a custom cache header
+        $cacheHeader = $request->getHeader('X-Cache-Control-Override');
         
         if ($cacheHeader) {
             $response->removeHeader('Cache-Control');

@@ -15,8 +15,8 @@ class CacheControlContentControllerExtension extends Extension
             $cacheHeader = $page->getCacheControlHeader();
             
             if ($cacheHeader) {
-                $response = $this->owner->getResponse();
-                $response->addHeader('Cache-Control', $cacheHeader);
+                // Store on request so middleware can use it later
+                $this->owner->getRequest()->addHeader('X-Cache-Control-Override', $cacheHeader);
             }
         }
     }

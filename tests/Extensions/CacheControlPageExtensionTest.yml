@@ -1,0 +1,8 @@
+SilverStripe\CMS\Model\SiteTree:
+  page1:
+    Title: 'Test Page 1'
+  page2:
+    Title: 'Test Page 2'
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'private'

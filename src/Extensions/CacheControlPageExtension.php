@@ -52,14 +52,7 @@ class CacheControlPageExtension extends DataExtension
                 ->setDescription('Enable this to set custom cache control for this specific page, overriding site-wide settings.'),
         ]);
 
-        // Pre-fill with site settings if not already set
-        if (!$this->owner->OverrideCacheControl || !$this->owner->isChanged('OverrideCacheControl')) {
-            $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
-            $this->owner->CacheType = $siteConfig->CacheType;
-            $this->owner->CacheDuration = $siteConfig->CacheDuration;
-            $this->owner->MaxAge = $siteConfig->MaxAge;
-            $this->owner->EnableMustRevalidate = $siteConfig->EnableMustRevalidate;
-        }
+
 
         $fields->addFieldsToTab('Root.CacheControl', [
             HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3)
@@ -107,6 +100,33 @@ class CacheControlPageExtension extends DataExtension
                     ->andIf('CacheDuration')->isEqualTo('maxage')
                 ->end(),
         ]);
+    }
+
+    public function onBeforeWrite()
+    {
+        parent::onBeforeWrite();
+        
+        // Pre-fill with site settings when override is first enabled
+        if ($this->owner->isChanged('OverrideCacheControl') && $this->owner->OverrideCacheControl) {
+            $siteConfig = SiteConfig::current_site_config();
+            
+            // Only pre-fill if values haven't been set
+            if (!$this->owner->getField('EnableCacheControl')) {
+                $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
+            }
+            if (!$this->owner->getField('CacheType')) {
+                $this->owner->CacheType = $siteConfig->CacheType ?: 'public';
+            }
+            if (!$this->owner->getField('CacheDuration')) {
+                $this->owner->CacheDuration = $siteConfig->CacheDuration ?: 'maxage';
+            }
+            if (!$this->owner->getField('MaxAge')) {
+                $this->owner->MaxAge = $siteConfig->MaxAge ?: 120;
+            }
+            if (!$this->owner->getField('EnableMustRevalidate')) {
+                $this->owner->EnableMustRevalidate = $siteConfig->EnableMustRevalidate;
+            }
+        }
     }
 
     public function getCacheControlHeader()

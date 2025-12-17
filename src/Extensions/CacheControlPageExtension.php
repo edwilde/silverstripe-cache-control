@@ -10,6 +10,7 @@ use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
 use SilverStripe\ORM\DataExtension;
 use SilverStripe\SiteConfig\SiteConfig;
+use UncleCheese\DisplayLogic\Forms\Wrapper;
 
 class CacheControlPageExtension extends DataExtension
 {
@@ -34,63 +35,86 @@ class CacheControlPageExtension extends DataExtension
     public function updateCMSFields(FieldList $fields)
     {
         $effectiveHeader = $this->owner->getEffectiveCacheControlDescription();
-        
+
         // Get site config for pre-filling
         $siteConfig = SiteConfig::current_site_config();
-        
+
+        $headerField = HeaderField::create('CacheControlHeader', 'Page Cache-Control Settings', 2);
+
+        $currentCacheControlField = LiteralField::create('CurrentCacheControl',
+            '<div class="message notice">' .
+            '<strong>Current Cache-Control Header:</strong><br>' .
+            $effectiveHeader .
+            '</div>'
+        );
+
+        $overrideField = CheckboxField::create('OverrideCacheControl', 'Override Site Cache Settings')
+            ->setDescription('Enable this to set custom cache control for this specific page, overriding site-wide settings.');
+
+        $pageHeaderField = HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3);
+        $pageInfoField = LiteralField::create('PageCacheControlInfo',
+            '<p class="message info">These settings will only apply to this page and override the site-wide cache settings. Values are pre-filled with current site defaults.</p>'
+        );
+        $enableCacheField = CheckboxField::create('EnableCacheControl', 'Enable Cache Control for this Page')
+            ->setDescription('Turn on cache control headers for this page.');
+        $cacheTypeField = OptionsetField::create('CacheType', 'Cache Type', [
+            'public' => 'Public - Allow browsers and CDNs to cache (recommended for public pages)',
+            'private' => 'Private - Only allow browser caching, not CDN/proxy caching (for user-specific content)',
+        ])->setDescription('Choose who can cache this page.');
+        $cacheDurationField = OptionsetField::create('CacheDuration', 'Cache Duration', [
+            'maxage' => 'Cache with Max Age - Allow caching for a specified time',
+            'nostore' => 'No Store - Prevent all caching (for sensitive or frequently changing content)',
+        ])->setDescription('Choose how long content can be cached.');
+        $maxAgeField = NumericField::create('MaxAge', 'Max Age (seconds)')
+            ->setDescription('Default is 120 seconds (2 minutes). Common values: 60 (1 min), 300 (5 mins), 3600 (1 hour), 86400 (1 day).')
+            ->setAttribute('placeholder', '120');
+        $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
+            ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content.');
+
+        // Apply Display Logic
+        $pageHeaderField->displayIf('OverrideCacheControl')->isChecked();
+        $pageInfoField->displayIf('OverrideCacheControl')->isChecked();
+        $enableCacheField->displayIf('OverrideCacheControl')->isChecked();
+
+        // Wrap OptionsetFields to ensure display logic works correctly
+        $cacheTypeWrapper = Wrapper::create($cacheTypeField);
+        $cacheTypeWrapper->displayIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked()->end();
+
+        $cacheDurationWrapper = Wrapper::create($cacheDurationField);
+        $cacheDurationWrapper->displayIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked()->end();
+
+        $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked();
+
+        $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked();
+
         $fields->addFieldsToTab('Root.CacheControl', [
-            HeaderField::create('CacheControlHeader', 'Page Cache-Control Settings', 2),
-            
-            LiteralField::create('CurrentCacheControl', 
-                '<div class="message notice">' .
-                '<strong>Current Cache-Control Header:</strong><br>' .
-                $effectiveHeader .
-                '</div>'
-            ),
-            
-            CheckboxField::create('OverrideCacheControl', 'Override Site Cache Settings')
-                ->setDescription('Enable this to set custom cache control for this specific page, overriding site-wide settings.'),
-            
-            $pageHeaderField = HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3),
-            $pageInfoField = LiteralField::create('PageCacheControlInfo', 
-                '<p class="message info">These settings will only apply to this page and override the site-wide cache settings. Values are pre-filled with current site defaults.</p>'
-            ),
-            $enableCacheField = CheckboxField::create('EnableCacheControl', 'Enable Cache Control for this Page')
-                ->setDescription('Turn on cache control headers for this page.'),
-            $cacheTypeField = OptionsetField::create('CacheType', 'Cache Type', [
-                'public' => 'Public - Allow browsers and CDNs to cache (recommended for public pages)',
-                'private' => 'Private - Only allow browser caching, not CDN/proxy caching (for user-specific content)',
-            ])->setDescription('Choose who can cache this page.'),
-            $cacheDurationField = OptionsetField::create('CacheDuration', 'Cache Duration', [
-                'maxage' => 'Cache with Max Age - Allow caching for a specified time',
-                'nostore' => 'No Store - Prevent all caching (for sensitive or frequently changing content)',
-            ])->setDescription('Choose how long content can be cached.'),
-            $maxAgeField = NumericField::create('MaxAge', 'Max Age (seconds)')
-                ->setDescription('Default is 120 seconds (2 minutes). Common values: 60 (1 min), 300 (5 mins), 3600 (1 hour), 86400 (1 day).')
-                ->setAttribute('placeholder', '120'),
-            $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
-                ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content.'),
+            $headerField,
+            $currentCacheControlField,
+            $overrideField,
+            $pageHeaderField,
+            $pageInfoField,
+            $enableCacheField,
+            $cacheTypeWrapper,
+            $cacheDurationWrapper,
+            $maxAgeField,
+            $mustRevalidateField,
         ]);
-        
-        $pageHeaderField->displayIf('OverrideCacheControl')->isEqualTo(1);
-        $pageInfoField->displayIf('OverrideCacheControl')->isEqualTo(1);
-        $enableCacheField->displayIf('OverrideCacheControl')->isEqualTo(1);
-        $cacheTypeField->displayIf('OverrideCacheControl')->isEqualTo(1)
-            ->andIf('EnableCacheControl')->isEqualTo(1);
-        $cacheDurationField->displayIf('OverrideCacheControl')->isEqualTo(1)
-            ->andIf('EnableCacheControl')->isEqualTo(1);
-        $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage');
-        $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage');
     }
 
     public function onBeforeWrite()
     {
         parent::onBeforeWrite();
-        
+
         // Pre-fill with site settings when override is first enabled
         if ($this->owner->isChanged('OverrideCacheControl') && $this->owner->OverrideCacheControl) {
             $siteConfig = SiteConfig::current_site_config();
-            
+
             // Only pre-fill if values haven't been set
             if (!$this->owner->getField('EnableCacheControl')) {
                 $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
@@ -156,14 +180,14 @@ class CacheControlPageExtension extends DataExtension
     public function getEffectiveCacheControlDescription()
     {
         $header = $this->owner->getCacheControlHeader();
-        
+
         if (!$header) {
             return 'No cache control is currently set for this page. ' .
                    'Browsers will use their default caching behavior.';
         }
 
-        $source = $this->owner->OverrideCacheControl 
-            ? 'This is a <strong>page-specific setting</strong>.' 
+        $source = $this->owner->OverrideCacheControl
+            ? 'This is a <strong>page-specific setting</strong>.'
             : 'This is <strong>inherited from site-wide settings</strong>.';
 
         return sprintf(

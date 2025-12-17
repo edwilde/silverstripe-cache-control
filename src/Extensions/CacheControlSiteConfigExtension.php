@@ -9,6 +9,7 @@ use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
 use SilverStripe\ORM\DataExtension;
+use UncleCheese\DisplayLogic\Forms\Wrapper;
 
 class CacheControlSiteConfigExtension extends DataExtension
 {
@@ -34,37 +35,44 @@ class CacheControlSiteConfigExtension extends DataExtension
             'public' => 'Public - Allow browsers and CDNs to cache (recommended for public pages)',
             'private' => 'Private - Only allow browser caching, not CDN/proxy caching (for user-specific content)',
         ])->setDescription('Choose who can cache your pages.');
-        
+
         $cacheDurationField = OptionsetField::create('CacheDuration', 'Cache Duration', [
             'maxage' => 'Cache with Max Age - Allow caching for a specified time',
             'nostore' => 'No Store - Prevent all caching (for sensitive or frequently changing content)',
         ])->setDescription('Choose how long content can be cached.');
-        
+
         $maxAgeField = NumericField::create('MaxAge', 'Max Age (seconds)')
             ->setDescription('Default is 120 seconds (2 minutes). Common values: 60 (1 min), 300 (5 mins), 3600 (1 hour), 86400 (1 day).')
             ->setAttribute('placeholder', '120');
-        
+
         $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
             ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content.');
-        
+
+        // Wrap OptionsetFields to ensure display logic works correctly
+        $cacheTypeWrapper = Wrapper::create($cacheTypeField);
+        $cacheTypeWrapper->displayIf('EnableCacheControl')->isChecked()->end();
+
+        $cacheDurationWrapper = Wrapper::create($cacheDurationField);
+        $cacheDurationWrapper->displayIf('EnableCacheControl')->isChecked()->end();
+
+        $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('EnableCacheControl')->isChecked();
+        $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('EnableCacheControl')->isChecked();
+
         $fields->addFieldsToTab('Root.CacheControl', [
             HeaderField::create('CacheControlHeader', 'Cache-Control Settings', 2),
-            LiteralField::create('CacheControlInfo', 
+            LiteralField::create('CacheControlInfo',
                 '<p class="message notice">Control how browsers and CDNs cache your website pages. ' .
                 'Enable cache control to improve performance by allowing browsers to store copies of your pages.</p>'
             ),
             CheckboxField::create('EnableCacheControl', 'Enable Cache Control')
                 ->setDescription('Turn on cache control headers for this site. When disabled, no cache headers will be added.'),
-            $cacheTypeField,
-            $cacheDurationField,
+            $cacheTypeWrapper,
+            $cacheDurationWrapper,
             $maxAgeField,
             $mustRevalidateField,
         ]);
-        
-        $cacheTypeField->displayIf('EnableCacheControl')->isEqualTo(1);
-        $cacheDurationField->displayIf('EnableCacheControl')->isEqualTo(1);
-        $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage');
-        $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage');
     }
 
     public function getCacheControlHeader()

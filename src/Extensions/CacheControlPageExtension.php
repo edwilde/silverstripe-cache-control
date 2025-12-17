@@ -84,17 +84,11 @@ class CacheControlPageExtension extends DataExtension
             NumericField::create('MaxAge', 'Max Age (seconds)')
                 ->setDescription('Default is 120 seconds (2 minutes). Common values: 60 (1 min), 300 (5 mins), 3600 (1 hour), 86400 (1 day).')
                 ->setAttribute('placeholder', '120')
-                ->displayIf('OverrideCacheControl')->isChecked()
-                    ->andIf('EnableCacheControl')->isChecked()
-                    ->andIf('CacheDuration')->isEqualTo('maxage')
-                ->end(),
+                ->displayIf('CacheDuration')->isEqualTo('maxage')->end(),
             
             CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
                 ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content.')
-                ->displayIf('OverrideCacheControl')->isChecked()
-                    ->andIf('EnableCacheControl')->isChecked()
-                    ->andIf('CacheDuration')->isEqualTo('maxage')
-                ->end(),
+                ->displayIf('CacheDuration')->isEqualTo('maxage')->end(),
         ]);
     }
 

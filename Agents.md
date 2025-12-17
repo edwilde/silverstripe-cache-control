@@ -111,6 +111,8 @@ vendor/bin/phpunit tests/Unit/ --testdox
 
 ### Testing Strategy
 
+**Test-Driven Development (TDD)**: This module follows TDD principles - write tests first, then implement features.
+
 **Unit Tests** (8 tests, all passing):
 - Located in `tests/Unit/CacheControlTraitTest.php`
 - Test core header generation logic
@@ -124,6 +126,18 @@ vendor/bin/phpunit tests/Unit/ --testdox
 - Require database and SilverStripe environment
 - Test field addition, override logic, and middleware behavior
 
+**Functional Tests** (CRITICAL):
+- Located in `tests/Functional/`
+- **Must test ALL cache directive combinations**:
+  - Site-wide: public + max-age, private + max-age, no-store
+  - Page override: all above combinations
+  - Page override with cache disabled
+  - Fallback to site config when override disabled
+  - Must-revalidate combinations
+- Tests actual HTTP response headers
+- Prevents regressions like "no-store shows public,max-age=0"
+- Essential for validating that header generation AND application both work correctly
+
 **Running Tests**:
 ```bash
 # Unit tests only (no database needed)
@@ -131,7 +145,19 @@ vendor/bin/phpunit tests/Unit/ --testdox
 
 # All tests (requires full SilverStripe environment)
 vendor/bin/phpunit --testdox
+
+# Specific test suites
+vendor/bin/phpunit tests/Extensions/ --testdox
+vendor/bin/phpunit tests/Functional/ --testdox
 ```
+
+**Testing Checklist for New Features**:
+1. Write unit tests for header generation logic
+2. Write functional tests for all combinations
+3. Verify tests fail without implementation (red)
+4. Implement feature
+5. Verify tests pass (green)
+6. Refactor if needed while keeping tests green
 
 ### Key Implementation Details
 

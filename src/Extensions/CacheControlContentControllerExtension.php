@@ -76,23 +76,12 @@ class CacheControlContentControllerExtension extends Extension
      */
     private function applyCacheControl($header)
     {
-        // Debug logging
-        file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
-            "[%s] applyCacheControl called with: %s\n",
-            date('Y-m-d H:i:s'),
-            $header
-        ), FILE_APPEND);
-        
         // Get the HTTPCacheControlMiddleware singleton to configure cache behavior
         $cacheControl = \SilverStripe\Control\Middleware\HTTPCacheControlMiddleware::singleton();
         
         // Handle no-store directive FIRST (prevents all caching)
         if (strpos($header, 'no-store') !== false) {
             $cacheControl->disableCache(true);
-            file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
-                "[%s] Called disableCache(true) for no-store\n",
-                date('Y-m-d H:i:s')
-            ), FILE_APPEND);
             return;
         }
         
@@ -102,12 +91,6 @@ class CacheControlContentControllerExtension extends Extension
             $maxAge = (int)$matches[1];
         }
         
-        file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
-            "[%s] Extracted max-age: %d\n",
-            date('Y-m-d H:i:s'),
-            $maxAge
-        ), FILE_APPEND);
-        
         // Apply private or public cache directive
         if (strpos($header, 'private') !== false) {
             $cacheControl->privateCache(true);
@@ -115,18 +98,8 @@ class CacheControlContentControllerExtension extends Extension
             if ($maxAge > 0) {
                 $cacheControl->setMaxAge($maxAge);
             }
-            file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
-                "[%s] Called privateCache(true) and setMaxAge(%d)\n",
-                date('Y-m-d H:i:s'),
-                $maxAge
-            ), FILE_APPEND);
         } else {
             $cacheControl->publicCache(true, $maxAge);
-            file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
-                "[%s] Called publicCache(true, %d)\n",
-                date('Y-m-d H:i:s'),
-                $maxAge
-            ), FILE_APPEND);
         }
         
         // Handle must-revalidate directive

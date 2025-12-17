@@ -72,18 +72,15 @@ class CacheControlPageExtension extends DataExtension
                 ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content.'),
         ]);
         
-        // Apply display logic
-        $pageHeaderField->displayIf('OverrideCacheControl')->isEqualTo("1")->end();
-        $pageInfoField->displayIf('OverrideCacheControl')->isEqualTo("1")->end();
-        $enableCacheField->displayIf('OverrideCacheControl')->isEqualTo("1")->end();
-        $cacheTypeField->displayIf('OverrideCacheControl')->isEqualTo("1")
-            ->andIf('EnableCacheControl')->isEqualTo("1")
-            ->end();
-        $cacheDurationField->displayIf('OverrideCacheControl')->isEqualTo("1")
-            ->andIf('EnableCacheControl')->isEqualTo("1")
-            ->end();
-        $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
-        $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
+        $pageHeaderField->displayIf('OverrideCacheControl')->isChecked();
+        $pageInfoField->displayIf('OverrideCacheControl')->isChecked();
+        $enableCacheField->displayIf('OverrideCacheControl')->isChecked();
+        $cacheTypeField->displayIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked();
+        $cacheDurationField->displayIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked();
+        $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage');
+        $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage');
     }
 
     public function onBeforeWrite()

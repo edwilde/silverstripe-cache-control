@@ -205,6 +205,7 @@ curl -I http://yoursite.com/page
 - Keep methods focused (single responsibility)
 - Use early returns to reduce nesting
 - Prefer composition over inheritance
+- **NEVER use `cat` to create or edit files** - always use proper file creation tools/APIs
 
 **Documentation Requirements** (IMPORTANT):
 - **All classes must have a masthead** explaining purpose, features, and usage

@@ -67,7 +67,7 @@ src/
 'CacheType' => 'Enum("public,private","public")'    // Cache visibility (default: public)
 'CacheDuration' => 'Enum("maxage,nostore","maxage")'// Duration strategy (default: maxage)
 'MaxAge' => 'Int'                                    // Cache duration in seconds (default: 120)
-'EnableMustRevalidate' => 'Boolean'                  // Force revalidation (default: false)
+'EnableMustRevalidate' => 'Boolean'                  // Force revalidation (default: true, recommended)
 ```
 
 **SiteTree Table Extensions** (same fields as above plus):

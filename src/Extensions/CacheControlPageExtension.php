@@ -54,6 +54,7 @@ class CacheControlPageExtension extends DataExtension
     /**
      * Default values for cache control fields
      * Cache control is disabled by default to avoid unintended caching behavior
+     * Must-revalidate is enabled by default as recommended for most scenarios
      *
      * @var array
      */
@@ -63,7 +64,7 @@ class CacheControlPageExtension extends DataExtension
         'CacheType' => 'public',
         'CacheDuration' => 'maxage',
         'MaxAge' => 120,
-        'EnableMustRevalidate' => false,
+        'EnableMustRevalidate' => true,
     ];
 
     /**
@@ -117,7 +118,7 @@ class CacheControlPageExtension extends DataExtension
             ->setDescription('Default is 120 seconds (2 minutes). Common values: 60 (1 min), 300 (5 mins), 3600 (1 hour), 86400 (1 day).')
             ->setAttribute('placeholder', '120');
         $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
-            ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content.');
+            ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content (recommended).');
 
         // Apply Display Logic - fields show/hide based on conditions
         // First level: only show when override is enabled

@@ -65,8 +65,8 @@ Specifies how long (in seconds) the content can be cached before it must be reva
 - 3600 = 1 hour
 - 86400 = 1 day
 
-### Must Revalidate
-Forces browsers to check with the server when the cache expires, rather than serving potentially stale content.
+### Must Revalidate (Recommended)
+Forces browsers to check with the server when the cache expires, rather than serving potentially stale content. **This is enabled by default and recommended for most scenarios** to ensure users receive fresh content when the cache expires.
 
 ### No Store
 Completely prevents caching. Use for sensitive or rapidly changing content. This overrides all other caching directives.

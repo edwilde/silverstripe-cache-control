@@ -52,44 +52,46 @@ src/
 1. **Request comes in** → Middleware intercepts
 2. **Middleware gets current page** from ContentController
 3. **Check for page override**:
-   - If `OverrideCacheControl` is enabled → Use page settings
+   - If `OverrideCacheControl` is enabled → Use page settings (even if cache is disabled)
    - Otherwise → Use site-wide SiteConfig settings
-4. **Generate header** via `CacheControlTrait::buildCacheControlHeader()`
+4. **Generate header** from page or site config settings
 5. **Apply header** to HTTP response (unless already set)
+
+**Important**: When override is enabled at page level but `EnableCacheControl` is false, the method returns `null` (no caching). This allows editors to explicitly disable caching on specific pages even when site-wide caching is enabled.
 
 ### Database Schema
 
 **SiteConfig Table Extensions**:
 ```php
-'EnableCacheControl' => 'Boolean'         // Master switch (default: false)
-'CacheType' => 'Enum("public,private")'   // Cache visibility (default: public)
-'EnableMaxAge' => 'Boolean'               // Max-age toggle (default: false)
-'MaxAge' => 'Int'                         // Cache duration in seconds (default: 120)
-'EnableMustRevalidate' => 'Boolean'       // Force revalidation (default: false)
-'EnableNoStore' => 'Boolean'              // Prevent caching (default: false)
+'EnableCacheControl' => 'Boolean'                    // Master switch (default: false)
+'CacheType' => 'Enum("public,private","public")'    // Cache visibility (default: public)
+'CacheDuration' => 'Enum("maxage,nostore","maxage")'// Duration strategy (default: maxage)
+'MaxAge' => 'Int'                                    // Cache duration in seconds (default: 120)
+'EnableMustRevalidate' => 'Boolean'                  // Force revalidation (default: false)
 ```
 
 **SiteTree Table Extensions** (same fields as above plus):
 ```php
-'OverrideCacheControl' => 'Boolean'       // Enable page-specific override (default: false)
+'OverrideCacheControl' => 'Boolean'                  // Enable page-specific override (default: false)
 ```
 
 ### Cache Header Generation Logic
 
-Located in `CacheControlTrait::buildCacheControlHeader()`:
+Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `CacheControlPageExtension::getPageCacheControlHeader()`:
 
 1. **Early return** if `EnableCacheControl` is false → returns `null`
-2. **Build directives array**:
-   - Add `no-store` if enabled
+2. **Check cache duration**:
+   - If `CacheDuration` is `'nostore'` → return `"no-store"` only (overrides everything else)
+3. **Build directives array** (if using maxage):
    - Add cache type (`public` or `private`)
-   - Add `max-age={value}` if enabled AND `no-store` is not set
-   - Add `must-revalidate` if enabled
-3. **Join directives** with `, ` and return as string
+   - Add `max-age={value}` (defaults to 120 if not set)
+   - Add `must-revalidate` if `EnableMustRevalidate` is true
+4. **Join directives** with `, ` and return as string
 
 **Example outputs**:
 - `"public, max-age=120"`
 - `"private, max-age=3600, must-revalidate"`
-- `"no-store"` (ignores max-age)
+- `"no-store"` (ignores all other settings)
 
 ## Development Guide
 
@@ -133,12 +135,17 @@ vendor/bin/phpunit --testdox
 
 ### Key Implementation Details
 
-**Conditional Field Visibility**: Uses `unclecheese/display-logic` module:
+**Conditional Field Visibility**: Uses `unclecheese/display-logic` module. **Important**: OptionsetFields must be wrapped with `Wrapper::create()` for display logic to work:
 ```php
-CheckboxField::create('EnableMaxAge', 'Enable Max Age')
-    ->displayIf('EnableCacheControl')->isChecked()
-        ->andIf('EnableNoStore')->isNotChecked()
-    ->end()
+// Checkbox - display logic directly on field
+CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
+    ->displayIf('CacheDuration')->isEqualTo('maxage')
+        ->andIf('EnableCacheControl')->isChecked();
+
+// Optionset - must use Wrapper
+$cacheTypeField = OptionsetField::create('CacheType', 'Cache Type', [...]);
+$wrapper = Wrapper::create($cacheTypeField);
+$wrapper->displayIf('EnableCacheControl')->isChecked()->end();
 ```
 
 **Performance Optimization**:

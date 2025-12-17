@@ -72,13 +72,13 @@ class CacheControlPageExtension extends DataExtension
                 ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content.'),
         ]);
         
-        $pageHeaderField->displayIf('OverrideCacheControl')->isChecked();
-        $pageInfoField->displayIf('OverrideCacheControl')->isChecked();
-        $enableCacheField->displayIf('OverrideCacheControl')->isChecked();
-        $cacheTypeField->displayIf('OverrideCacheControl')->isChecked()
-            ->andIf('EnableCacheControl')->isChecked();
-        $cacheDurationField->displayIf('OverrideCacheControl')->isChecked()
-            ->andIf('EnableCacheControl')->isChecked();
+        $pageHeaderField->displayIf('OverrideCacheControl')->isEqualTo(1);
+        $pageInfoField->displayIf('OverrideCacheControl')->isEqualTo(1);
+        $enableCacheField->displayIf('OverrideCacheControl')->isEqualTo(1);
+        $cacheTypeField->displayIf('OverrideCacheControl')->isEqualTo(1)
+            ->andIf('EnableCacheControl')->isEqualTo(1);
+        $cacheDurationField->displayIf('OverrideCacheControl')->isEqualTo(1)
+            ->andIf('EnableCacheControl')->isEqualTo(1);
         $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage');
         $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage');
     }

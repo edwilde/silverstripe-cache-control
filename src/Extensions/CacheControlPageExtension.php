@@ -136,10 +136,12 @@ class CacheControlPageExtension extends DataExtension
 
     public function getCacheControlHeader()
     {
-        if ($this->owner->OverrideCacheControl) {
+        // Only use page-specific settings if override is explicitly enabled
+        if ($this->owner->OverrideCacheControl && $this->owner->EnableCacheControl) {
             return $this->getPageCacheControlHeader();
         }
 
+        // Fall back to site config settings
         $siteConfig = SiteConfig::current_site_config();
         if ($siteConfig->hasExtension(CacheControlSiteConfigExtension::class)) {
             return $siteConfig->getCacheControlHeader();
@@ -150,6 +152,7 @@ class CacheControlPageExtension extends DataExtension
 
     private function getPageCacheControlHeader()
     {
+        // This method should only be called when both override and cache control are enabled
         if (!$this->owner->EnableCacheControl) {
             return null;
         }

@@ -29,6 +29,60 @@ After installation, run:
 vendor/bin/sake dev/build flush=1
 ```
 
+## Configuration
+
+### Project-level Defaults
+
+You can configure default cache control settings for your project via YML configuration. This allows you to:
+
+- Set initial cache control values for all new sites
+- Control whether page-level overrides are allowed
+- Standardize caching behavior across your application
+
+Create a configuration file in your project at `app/_config/cache-controls.yml`:
+
+```yaml
+---
+Name: myproject-cache-controls
+After:
+  - '#cache-controls'
+---
+
+# Set default cache control values
+Edwilde\CacheControls\Extensions\CacheControlSiteConfigExtension:
+  defaults:
+    EnableCacheControl: true
+    CacheType: 'public'
+    CacheDuration: 'maxage'
+    MaxAge: 300
+    EnableMustRevalidate: true
+```
+
+This example enables caching by default with a 5-minute (300 second) cache time. Content editors can still modify these values through the CMS.
+
+#### Disabling Page-level Overrides
+
+To prevent content editors from overriding site-wide settings on individual pages:
+
+```yaml
+SilverStripe\CMS\Model\SiteTree:
+  allow_page_override: false
+```
+
+When disabled, the "Cache Control" tab will not appear on pages, and all pages will use site-wide settings.
+
+#### Configuration Examples
+
+See `_config/config-example.yml` in the module for more complete examples including:
+
+- **Standard public caching** (5 minutes): Best for most public websites
+- **Aggressive caching** (1 hour): For rarely updated content
+- **Conservative caching** (1 minute): For frequently updated content
+- **Private caching**: For user-specific content
+- **No caching by default**: Keep module installed but disabled
+
+All configuration values can be overridden by content editors through the CMS unless page overrides are disabled.
+
 ## Usage
 
 ### Site-wide Settings

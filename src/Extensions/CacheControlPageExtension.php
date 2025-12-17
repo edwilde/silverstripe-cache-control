@@ -38,6 +38,15 @@ use UncleCheese\DisplayLogic\Forms\Wrapper;
 class CacheControlPageExtension extends DataExtension
 {
     /**
+     * Allow page-level overrides to be disabled via config
+     * When false, the CacheControl tab will not appear on pages
+     *
+     * @var bool
+     * @config
+     */
+    private static $allow_page_override = true;
+
+    /**
      * Database fields for page-level cache control
      *
      * @var array
@@ -82,6 +91,10 @@ class CacheControlPageExtension extends DataExtension
      */
     public function updateCMSFields(FieldList $fields)
     {
+        // Check if page-level overrides are allowed via config
+        if (!$this->owner->config()->get('allow_page_override')) {
+            return;
+        }
         // Display the current effective cache control header
         $effectiveHeader = $this->owner->getEffectiveCacheControlDescription();
 

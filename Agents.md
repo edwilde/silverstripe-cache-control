@@ -75,6 +75,52 @@ src/
 'OverrideCacheControl' => 'Boolean'                  // Enable page-specific override (default: false)
 ```
 
+### Configuration System
+
+The module supports project-level configuration to set default values and control features:
+
+**Configurable Options**:
+
+1. **Site-wide Defaults** (via `CacheControlSiteConfigExtension::$defaults`):
+   - `EnableCacheControl`: Master switch (default: false)
+   - `CacheType`: 'public' or 'private' (default: 'public')
+   - `CacheDuration`: 'maxage' or 'nostore' (default: 'maxage')
+   - `MaxAge`: Integer seconds (default: 120)
+   - `EnableMustRevalidate`: Boolean (default: true, recommended)
+
+2. **Page Override Control** (via `CacheControlPageExtension::$allow_page_override`):
+   - Boolean to enable/disable page-level overrides (default: true)
+   - When false, Cache Control tab is hidden from pages
+
+**Example Configuration** (in project's `app/_config/cache-controls.yml`):
+
+```yaml
+---
+Name: myproject-cache-controls
+After:
+  - '#cache-controls'
+---
+
+# Set default values for all new sites
+Edwilde\CacheControls\Extensions\CacheControlSiteConfigExtension:
+  defaults:
+    EnableCacheControl: true
+    CacheType: 'public'
+    CacheDuration: 'maxage'
+    MaxAge: 300
+    EnableMustRevalidate: true
+
+# Disable page-level overrides
+SilverStripe\CMS\Model\SiteTree:
+  allow_page_override: false
+```
+
+**Important Notes**:
+- Configuration only sets initial/default values
+- Content editors can override these via CMS (unless page overrides are disabled)
+- Changes in config don't affect existing database records
+- Developers can standardize caching behavior across applications
+
 ### Cache Header Generation Logic
 
 Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `CacheControlPageExtension::getPageCacheControlHeader()`:

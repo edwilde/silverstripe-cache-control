@@ -28,6 +28,7 @@ use SilverStripe\Forms\HeaderField;
 use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
+use SilverStripe\Forms\ToggleCompositeField;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 
 /**
@@ -50,12 +51,17 @@ class CacheControlSiteConfigExtension extends DataExtension
         'MaxAge' => 'Int',
         'MaxAgePreset' => 'Enum("120,300,600,3600,86400,custom","120")',
         'EnableMustRevalidate' => 'Boolean',
+        'VaryAcceptEncoding' => 'Boolean',
+        'VaryXForwardedProtocol' => 'Boolean',
+        'VaryCookie' => 'Boolean',
+        'VaryAuthorization' => 'Boolean',
     ];
 
     /**
      * Default values for cache control fields
      * Cache control is disabled by default to avoid unintended caching behavior
      * Must-revalidate is enabled by default as recommended for most scenarios
+     * Accept-Encoding is enabled by default as it's standard practice
      *
      * @var array
      */
@@ -66,6 +72,10 @@ class CacheControlSiteConfigExtension extends DataExtension
         'MaxAge' => 120,
         'MaxAgePreset' => '120',
         'EnableMustRevalidate' => true,
+        'VaryAcceptEncoding' => true,
+        'VaryXForwardedProtocol' => false,
+        'VaryCookie' => false,
+        'VaryAuthorization' => false,
     ];
 
     /**
@@ -125,6 +135,27 @@ class CacheControlSiteConfigExtension extends DataExtension
         $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('EnableCacheControl')->isChecked();
 
+        // Vary header fields in a collapsible section
+        $varySection = ToggleCompositeField::create('VarySettings', 'Vary Header (Advanced)',
+            [
+                LiteralField::create('VaryInfo',
+                    '<p class="message notice">The Vary header tells caches which request headers affect the response. ' .
+                    'Select which headers should cause separate cache entries to be stored.</p>'
+                ),
+                CheckboxField::create('VaryAcceptEncoding', 'Accept-Encoding')
+                    ->setDescription('Store separate cache entries for different compression methods (gzip, br, etc). Recommended for most sites.'),
+                CheckboxField::create('VaryXForwardedProtocol', 'X-Forwarded-Protocol')
+                    ->setDescription('Store separate cache entries for HTTP vs HTTPS requests.'),
+                CheckboxField::create('VaryCookie', 'Cookie')
+                    ->setDescription('Store separate cache entries when cookies differ. Use for personalized content.'),
+                CheckboxField::create('VaryAuthorization', 'Authorization')
+                    ->setDescription('Store separate cache entries based on authentication. Use for protected content.'),
+            ]
+        );
+        
+        // Only show Vary section when cache control is enabled
+        $varySection->displayIf('EnableCacheControl')->isChecked();
+
         $fields->addFieldsToTab('Root.CacheControl', [
             HeaderField::create('CacheControlHeader', 'Cache-Control Settings', 2),
             LiteralField::create('CacheControlInfo',
@@ -138,6 +169,7 @@ class CacheControlSiteConfigExtension extends DataExtension
             $maxAgePresetField,
             $maxAgeField,
             $mustRevalidateField,
+            $varySection,
         ]);
     }
 
@@ -185,5 +217,41 @@ class CacheControlSiteConfigExtension extends DataExtension
         }
 
         return !empty($directives) ? implode(', ', $directives) : null;
+    }
+
+    /**
+     * Get the Vary header value
+     *
+     * Builds the Vary header from enabled options. This header tells caches
+     * which request headers affect the response, allowing separate cache
+     * entries for different variations.
+     *
+     * @return string|null The Vary header value, or null if no options enabled
+     */
+    public function getVaryHeader()
+    {
+        if (!$this->owner->EnableCacheControl) {
+            return null;
+        }
+
+        $varyHeaders = [];
+
+        if ($this->owner->VaryAcceptEncoding) {
+            $varyHeaders[] = 'Accept-Encoding';
+        }
+
+        if ($this->owner->VaryXForwardedProtocol) {
+            $varyHeaders[] = 'X-Forwarded-Protocol';
+        }
+
+        if ($this->owner->VaryCookie) {
+            $varyHeaders[] = 'Cookie';
+        }
+
+        if ($this->owner->VaryAuthorization) {
+            $varyHeaders[] = 'Authorization';
+        }
+
+        return !empty($varyHeaders) ? implode(', ', $varyHeaders) : null;
     }
 }

@@ -23,6 +23,7 @@ namespace Edwilde\CacheControls\Extensions;
 
 use SilverStripe\Control\HTTP;
 use SilverStripe\Core\Extension;
+use SilverStripe\SiteConfig\SiteConfig;
 
 /**
  * Controller extension for applying cache control headers
@@ -55,6 +56,9 @@ class CacheControlContentControllerExtension extends Extension
             if ($cacheHeader) {
                 // Apply the cache control header to the response
                 $this->applyCacheControl($cacheHeader);
+                
+                // Apply Vary header (always from site config, not page-level)
+                $this->applyVaryHeader();
             }
         }
     }
@@ -139,6 +143,34 @@ class CacheControlContentControllerExtension extends Extension
         if ($response) {
             $expiresTime = time() + $maxAge;
             $response->addHeader('Expires', gmdate('D, d M Y H:i:s', $expiresTime) . ' GMT');
+        }
+    }
+    
+    /**
+     * Apply Vary header from site config
+     *
+     * The Vary header is always sourced from site-wide settings (not page-level).
+     * It tells caches which request headers affect the response, allowing separate
+     * cache entries for different variations (e.g., different encodings, protocols).
+     *
+     * Replaces SilverStripe's default Vary headers with the configured ones.
+     *
+     * @return void
+     */
+    private function applyVaryHeader()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        
+        if ($siteConfig->hasMethod('getVaryHeader')) {
+            $varyHeader = $siteConfig->getVaryHeader();
+            
+            $response = $this->owner->getResponse();
+            if ($response && $varyHeader) {
+                // Remove any existing Vary headers set by SilverStripe
+                $response->removeHeader('Vary');
+                // Add our configured Vary header
+                $response->addHeader('Vary', $varyHeader);
+            }
         }
     }
 }

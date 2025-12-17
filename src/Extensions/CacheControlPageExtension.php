@@ -1,5 +1,22 @@
 <?php
 
+/**
+ * Cache Control Page Extension
+ *
+ * Extends Page objects to provide page-level cache control header configuration.
+ * Allows editors to override site-wide cache settings on a per-page basis.
+ *
+ * Features:
+ * - Optional override of site-wide cache settings
+ * - Same controls as site config (cache type, duration, max-age, must-revalidate)
+ * - Automatic pre-filling with site defaults when override is enabled
+ * - Clear visual indication of current cache control header
+ * - Conditional field visibility using display logic
+ *
+ * @package Edwilde\CacheControls
+ * @author Ed Wilde
+ */
+
 namespace Edwilde\CacheControls\Extensions;
 
 use SilverStripe\Forms\CheckboxField;
@@ -12,8 +29,19 @@ use SilverStripe\ORM\DataExtension;
 use SilverStripe\SiteConfig\SiteConfig;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 
+/**
+ * Page-level cache control extension
+ *
+ * Provides granular cache control at the page level, with the ability to override
+ * site-wide settings. When override is disabled, pages inherit site config settings.
+ */
 class CacheControlPageExtension extends DataExtension
 {
+    /**
+     * Database fields for page-level cache control
+     *
+     * @var array
+     */
     private static $db = [
         'OverrideCacheControl' => 'Boolean',
         'EnableCacheControl' => 'Boolean',
@@ -23,6 +51,12 @@ class CacheControlPageExtension extends DataExtension
         'EnableMustRevalidate' => 'Boolean',
     ];
 
+    /**
+     * Default values for cache control fields
+     * Cache control is disabled by default to avoid unintended caching behavior
+     *
+     * @var array
+     */
     private static $defaults = [
         'OverrideCacheControl' => false,
         'EnableCacheControl' => false,
@@ -32,11 +66,25 @@ class CacheControlPageExtension extends DataExtension
         'EnableMustRevalidate' => false,
     ];
 
+    /**
+     * Add cache control fields to the CMS
+     *
+     * Creates a new "Cache Control" tab with fields for:
+     * - Current cache control header display
+     * - Override checkbox to enable page-specific settings
+     * - All cache control options (conditionally visible)
+     *
+     * Uses display logic to show/hide fields based on selections.
+     *
+     * @param FieldList $fields The current CMS fields
+     * @return void
+     */
     public function updateCMSFields(FieldList $fields)
     {
+        // Display the current effective cache control header
         $effectiveHeader = $this->owner->getEffectiveCacheControlDescription();
 
-        // Get site config for pre-filling
+        // Get site config for later use in pre-filling values
         $siteConfig = SiteConfig::current_site_config();
 
         $headerField = HeaderField::create('CacheControlHeader', 'Page Cache-Control Settings', 2);
@@ -71,12 +119,14 @@ class CacheControlPageExtension extends DataExtension
         $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
             ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content.');
 
-        // Apply Display Logic
+        // Apply Display Logic - fields show/hide based on conditions
+        // First level: only show when override is enabled
         $pageHeaderField->displayIf('OverrideCacheControl')->isChecked();
         $pageInfoField->displayIf('OverrideCacheControl')->isChecked();
         $enableCacheField->displayIf('OverrideCacheControl')->isChecked();
 
-        // Wrap OptionsetFields to ensure display logic works correctly
+        // Second level: show when override AND cache control are enabled
+        // Note: OptionsetFields must be wrapped for display logic to work properly
         $cacheTypeWrapper = Wrapper::create($cacheTypeField);
         $cacheTypeWrapper->displayIf('OverrideCacheControl')->isChecked()
             ->andIf('EnableCacheControl')->isChecked()->end();
@@ -85,6 +135,7 @@ class CacheControlPageExtension extends DataExtension
         $cacheDurationWrapper->displayIf('OverrideCacheControl')->isChecked()
             ->andIf('EnableCacheControl')->isChecked()->end();
 
+        // Third level: only show max-age related fields when duration is set to 'maxage'
         $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('OverrideCacheControl')->isChecked()
             ->andIf('EnableCacheControl')->isChecked();
@@ -107,6 +158,15 @@ class CacheControlPageExtension extends DataExtension
         ]);
     }
 
+    /**
+     * Pre-fill page settings with site config values when override is first enabled
+     *
+     * This provides a better user experience by starting with the current site defaults
+     * rather than empty/default values. Only triggers when OverrideCacheControl changes
+     * from false to true.
+     *
+     * @return void
+     */
     public function onBeforeWrite()
     {
         parent::onBeforeWrite();
@@ -115,7 +175,7 @@ class CacheControlPageExtension extends DataExtension
         if ($this->owner->isChanged('OverrideCacheControl') && $this->owner->OverrideCacheControl) {
             $siteConfig = SiteConfig::current_site_config();
 
-            // Only pre-fill if values haven't been set
+            // Only pre-fill if values haven't been explicitly set yet
             if (!$this->owner->getField('EnableCacheControl')) {
                 $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
             }
@@ -134,6 +194,14 @@ class CacheControlPageExtension extends DataExtension
         }
     }
 
+    /**
+     * Get the cache control header for this page
+     *
+     * Returns either page-specific cache control or falls back to site config.
+     * This is the main method called by the middleware to determine what header to set.
+     *
+     * @return string|null The cache control header value, or null if none set
+     */
     public function getCacheControlHeader()
     {
         // Only use page-specific settings if override is explicitly enabled
@@ -150,29 +218,42 @@ class CacheControlPageExtension extends DataExtension
         return null;
     }
 
+    /**
+     * Build the cache control header from page-specific settings
+     *
+     * Constructs the header string based on selected options:
+     * - If no-store: only returns "no-store"
+     * - Otherwise: builds from cache type, max-age, and must-revalidate
+     *
+     * @return string|null The constructed cache control header value
+     */
     private function getPageCacheControlHeader()
     {
-        // This method should only be called when both override and cache control are enabled
+        // Defensive check - shouldn't reach here if cache control is disabled
         if (!$this->owner->EnableCacheControl) {
             return null;
         }
 
         $directives = [];
 
+        // no-store overrides everything else
         if ($this->owner->CacheDuration === 'nostore') {
             $directives[] = 'no-store';
             return implode(', ', $directives);
         }
 
+        // Add cache type (public/private)
         if ($this->owner->CacheType) {
             $directives[] = $this->owner->CacheType;
         }
 
+        // Add max-age if using maxage duration
         if ($this->owner->CacheDuration === 'maxage') {
             $maxAge = (int)$this->owner->MaxAge ?: 120;
             $directives[] = 'max-age=' . $maxAge;
         }
 
+        // Add must-revalidate if enabled
         if ($this->owner->EnableMustRevalidate) {
             $directives[] = 'must-revalidate';
         }
@@ -180,6 +261,14 @@ class CacheControlPageExtension extends DataExtension
         return !empty($directives) ? implode(', ', $directives) : null;
     }
 
+    /**
+     * Get a human-readable description of the effective cache control header
+     *
+     * Shows what header is currently active and whether it comes from page-specific
+     * settings or site-wide settings. Used in the CMS to provide clear feedback.
+     *
+     * @return string HTML-formatted description of the current cache control
+     */
     public function getEffectiveCacheControlDescription()
     {
         $header = $this->owner->getCacheControlHeader();

@@ -1,0 +1,12 @@
+To debug:
+1. Open browser to http://agent.nzta.local/admin/settings
+2. Open DevTools Console
+3. Check for JS errors
+4. Run: jQuery('[data-display-logic-eval]').length
+5. Check Network tab for bundle.js loading
+
+If jQuery('[data-display-logic-eval]').length returns > 0 but fields don't show/hide:
+- Check console for "DisplayLogic" object
+- Verify bundle.js loaded from resources/unclecheese/display-logic/
+
+Current data-display-logic-eval value should be valid now.

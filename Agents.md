@@ -93,6 +93,15 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
 - `"private, max-age=3600, must-revalidate"`
 - `"no-store"` (ignores all other settings)
 
+### HTTP Headers Applied
+
+The module applies the following HTTP headers:
+
+1. **Cache-Control**: The primary header controlling cache behavior (HTTP/1.1+)
+2. **Expires**: Set to match Cache-Control max-age for HTTP/1.0 compatibility
+
+**Expires Header**: When max-age is set, the Expires header is automatically calculated as `current_time + max-age` in GMT format. This ensures compatibility with older HTTP/1.0 caches and proxies. Per the HTTP specification, Cache-Control takes precedence over Expires in HTTP/1.1 clients, but both should be present for maximum compatibility.
+
 ## Development Guide
 
 ### Project Setup

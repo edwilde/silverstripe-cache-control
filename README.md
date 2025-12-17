@@ -79,7 +79,16 @@ The module consists of three main components:
 
 1. **CacheControlSiteConfigExtension**: Adds cache control fields to SiteConfig
 2. **CacheControlPageExtension**: Adds page-level override functionality
-3. **CacheControlMiddleware**: Applies the appropriate Cache-Control header to responses
+3. **CacheControlContentControllerExtension**: Applies the appropriate cache control headers to responses
+
+### HTTP Headers
+
+The module sets the following HTTP headers:
+
+- **Cache-Control**: The primary caching directive (e.g., `public, max-age=300`)
+- **Expires**: Automatically set to match the Cache-Control max-age for HTTP/1.0 compatibility
+
+When max-age is specified, the Expires header is calculated as the current time plus the max-age value in GMT format. This ensures compatibility with older HTTP/1.0 caches and proxies while maintaining full HTTP/1.1 Cache-Control support.
 
 ### Performance Considerations
 

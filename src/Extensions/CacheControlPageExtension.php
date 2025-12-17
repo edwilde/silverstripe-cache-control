@@ -163,31 +163,25 @@ class CacheControlPageExtension extends DataExtension
      *
      * This provides a better user experience by starting with the current site defaults
      * rather than empty/default values. Only triggers when OverrideCacheControl changes
-     * from false to true, and only for fields that were previously null/empty.
+     * from false to true, and only for fields that have not been explicitly set.
      *
-     * Important: We check isInDB() to distinguish between "never been set" (new records)
-     * and "explicitly set to false/empty" (edited records). This prevents overwriting
-     * intentional user choices like unchecking EnableCacheControl.
+     * Does NOT pre-fill on subsequent saves to preserve user's explicit choices,
+     * including intentionally disabling cache control for a specific page.
      *
      * @return void
      */
     public function onBeforeWrite()
     {
-        parent::onBeforeWrite();
-
         // Pre-fill with site settings when override is first enabled
         // Only do this if OverrideCacheControl just changed from false to true
         if ($this->owner->isChanged('OverrideCacheControl') && $this->owner->OverrideCacheControl) {
-            $siteConfig = SiteConfig::current_site_config();
-            
-            // Check if this is a new override (record exists but override values were never set)
-            // We use the original value to see if it was previously false/null
             $changedFields = $this->owner->getChangedFields();
-            $isNewOverride = isset($changedFields['OverrideCacheControl']) && 
-                            !$changedFields['OverrideCacheControl']['before'];
+            $wasDisabled = isset($changedFields['OverrideCacheControl']) && 
+                          !$changedFields['OverrideCacheControl']['before'];
 
             // Only pre-fill when first enabling override, not on subsequent edits
-            if ($isNewOverride) {
+            if ($wasDisabled) {
+                $siteConfig = SiteConfig::current_site_config();
                 $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
                 $this->owner->CacheType = $siteConfig->CacheType ?: 'public';
                 $this->owner->CacheDuration = $siteConfig->CacheDuration ?: 'maxage';
@@ -203,16 +197,22 @@ class CacheControlPageExtension extends DataExtension
      * Returns either page-specific cache control or falls back to site config.
      * This is the main method called by the middleware to determine what header to set.
      *
-     * When override is enabled, always use page settings even if cache control is disabled.
-     * This allows editors to explicitly disable caching on specific pages.
+     * When override is enabled, respects the page-specific EnableCacheControl setting,
+     * which allows editors to explicitly disable caching on specific pages.
+     * When override is disabled, falls back to site-wide settings.
      *
      * @return string|null The cache control header value, or null if none set
      */
     public function getCacheControlHeader()
     {
-        // If override is enabled, use page-specific settings (even if disabled)
+        // If override is enabled, use page-specific settings
         if ($this->owner->OverrideCacheControl) {
-            return $this->getPageCacheControlHeader();
+            // Only return page header if cache control is enabled for this page
+            if ($this->owner->EnableCacheControl) {
+                return $this->getPageCacheControlHeader();
+            }
+            // If override is enabled but cache control is disabled, return null (no caching)
+            return null;
         }
 
         // Fall back to site config settings
@@ -280,8 +280,11 @@ class CacheControlPageExtension extends DataExtension
         $header = $this->owner->getCacheControlHeader();
 
         if (!$header) {
-            return 'No cache control is currently set for this page. ' .
-                   'Browsers will use their default caching behavior.';
+            $reason = $this->owner->OverrideCacheControl && !$this->owner->EnableCacheControl
+                ? 'Cache control is disabled for this specific page.'
+                : 'No cache control is currently set for this page.';
+            
+            return $reason . ' Browsers will use their default caching behavior.';
         }
 
         $source = $this->owner->OverrideCacheControl

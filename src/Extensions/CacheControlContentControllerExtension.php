@@ -70,6 +70,7 @@ class CacheControlContentControllerExtension extends Extension
      * - max-age values
      * - must-revalidate directive
      * - no-store directive
+     * - Expires header (set to match max-age per HTTP spec)
      *
      * @param string $header The cache control header value to apply
      * @return void
@@ -93,13 +94,21 @@ class CacheControlContentControllerExtension extends Extension
         
         // Apply private or public cache directive
         if (strpos($header, 'private') !== false) {
+            // For private cache, we need to manually configure it
+            // because privateCache() doesn't accept maxAge parameter
             $cacheControl->privateCache(true);
-            // Manually set max-age for private cache
             if ($maxAge > 0) {
                 $cacheControl->setMaxAge($maxAge);
+                // Add Expires header to match max-age (HTTP/1.0 compatibility)
+                $this->setExpiresHeader($maxAge);
             }
         } else {
+            // For public cache, we can pass maxAge directly
             $cacheControl->publicCache(true, $maxAge);
+            if ($maxAge > 0) {
+                // Add Expires header to match max-age (HTTP/1.0 compatibility)
+                $this->setExpiresHeader($maxAge);
+            }
         }
         
         // Handle must-revalidate directive
@@ -111,6 +120,25 @@ class CacheControlContentControllerExtension extends Extension
             // Add if present in our header
             $cacheControl->setStateDirective('public', 'must-revalidate', true);
             $cacheControl->setStateDirective('private', 'must-revalidate', true);
+        }
+    }
+    
+    /**
+     * Set the Expires header based on max-age value
+     *
+     * The Expires header provides HTTP/1.0 compatibility and should match
+     * the Cache-Control max-age directive. It's calculated as the current
+     * time plus the max-age value.
+     *
+     * @param int $maxAge The max-age value in seconds
+     * @return void
+     */
+    private function setExpiresHeader($maxAge)
+    {
+        $response = $this->owner->getResponse();
+        if ($response) {
+            $expiresTime = time() + $maxAge;
+            $response->addHeader('Expires', gmdate('D, d M Y H:i:s', $expiresTime) . ' GMT');
         }
     }
 }

@@ -20,11 +20,11 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $fields = $siteConfig->getCMSFields();
 
         $this->assertNotNull($fields->fieldByName('Root.CacheControl.EnableCacheControl'));
-        $this->assertNotNull($fields->fieldByName('Root.CacheControl.CacheType'));
-        $this->assertNotNull($fields->fieldByName('Root.CacheControl.EnableMaxAge'));
+        $this->assertNotNull($fields->dataFieldByName('CacheType'));
+        $this->assertNotNull($fields->dataFieldByName('CacheDuration'));
+        $this->assertNotNull($fields->fieldByName('Root.CacheControl.MaxAgePreset'));
         $this->assertNotNull($fields->fieldByName('Root.CacheControl.MaxAge'));
         $this->assertNotNull($fields->fieldByName('Root.CacheControl.EnableMustRevalidate'));
-        $this->assertNotNull($fields->fieldByName('Root.CacheControl.EnableNoStore'));
     }
 
     public function testDefaultValues()
@@ -50,12 +50,12 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $siteConfig = SiteConfig::current_site_config();
         $siteConfig->EnableCacheControl = true;
         $siteConfig->CacheType = 'public';
-        $siteConfig->EnableMaxAge = true;
-        $siteConfig->MaxAge = 3600;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '3600';
         $siteConfig->write();
 
         $header = $siteConfig->getCacheControlHeader();
-        $this->assertEquals('public, max-age=3600', $header);
+        $this->assertEquals('public, max-age=3600, must-revalidate', $header);
     }
 
     public function testGetCacheControlHeaderWithPrivate()
@@ -63,11 +63,13 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $siteConfig = SiteConfig::current_site_config();
         $siteConfig->EnableCacheControl = true;
         $siteConfig->CacheType = 'private';
-        $siteConfig->EnableMaxAge = false;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
         $siteConfig->write();
 
         $header = $siteConfig->getCacheControlHeader();
-        $this->assertEquals('private', $header);
+        $this->assertEquals('private, max-age=120', $header);
     }
 
     public function testGetCacheControlHeaderWithMustRevalidate()
@@ -75,6 +77,8 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $siteConfig = SiteConfig::current_site_config();
         $siteConfig->EnableCacheControl = true;
         $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
         $siteConfig->EnableMustRevalidate = true;
         $siteConfig->write();
 
@@ -86,11 +90,11 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
     {
         $siteConfig = SiteConfig::current_site_config();
         $siteConfig->EnableCacheControl = true;
-        $siteConfig->EnableNoStore = true;
+        $siteConfig->CacheDuration = 'nostore';
         $siteConfig->write();
 
         $header = $siteConfig->getCacheControlHeader();
-        $this->assertStringContainsString('no-store', $header);
+        $this->assertEquals('no-store', $header);
         $this->assertStringNotContainsString('max-age', $header, 'no-store should ignore max-age');
     }
 
@@ -99,7 +103,8 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $siteConfig = SiteConfig::current_site_config();
         $siteConfig->EnableCacheControl = true;
         $siteConfig->CacheType = 'public';
-        $siteConfig->EnableMaxAge = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = 'custom';
         $siteConfig->MaxAge = 7200;
         $siteConfig->EnableMustRevalidate = true;
         $siteConfig->write();
@@ -108,17 +113,32 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $this->assertEquals('public, max-age=7200, must-revalidate', $header);
     }
 
-    public function testMaxAgeIgnoredWhenNotEnabled()
+    public function testMaxAgeUsesPresetValue()
     {
         $siteConfig = SiteConfig::current_site_config();
         $siteConfig->EnableCacheControl = true;
         $siteConfig->CacheType = 'public';
-        $siteConfig->EnableMaxAge = false;
-        $siteConfig->MaxAge = 3600;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '3600';
+        $siteConfig->EnableMustRevalidate = false;
         $siteConfig->write();
 
         $header = $siteConfig->getCacheControlHeader();
-        $this->assertEquals('public', $header);
-        $this->assertStringNotContainsString('max-age', $header);
+        $this->assertEquals('public, max-age=3600', $header);
+    }
+
+    public function testMaxAgeUsesCustomValue()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = 'custom';
+        $siteConfig->MaxAge = 999;
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $header = $siteConfig->getCacheControlHeader();
+        $this->assertEquals('public, max-age=999', $header);
     }
 }

@@ -21,6 +21,7 @@ namespace Edwilde\CacheControls\Extensions;
 
 use SilverStripe\ORM\DataExtension;
 use SilverStripe\Forms\CheckboxField;
+use SilverStripe\Forms\DropdownField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\HeaderField;
 use SilverStripe\Forms\LiteralField;
@@ -48,6 +49,7 @@ class CacheControlPageExtension extends DataExtension
         'CacheType' => 'Enum("public,private","public")',
         'CacheDuration' => 'Enum("maxage,nostore","maxage")',
         'MaxAge' => 'Int',
+        'MaxAgePreset' => 'Enum("120,300,600,3600,86400,custom","120")',
         'EnableMustRevalidate' => 'Boolean',
     ];
 
@@ -64,6 +66,7 @@ class CacheControlPageExtension extends DataExtension
         'CacheType' => 'public',
         'CacheDuration' => 'maxage',
         'MaxAge' => 120,
+        'MaxAgePreset' => '120',
         'EnableMustRevalidate' => true,
     ];
 
@@ -114,8 +117,16 @@ class CacheControlPageExtension extends DataExtension
             'maxage' => 'Cache with Max Age - Allow caching for a specified time',
             'nostore' => 'No Store - Prevent all caching (for sensitive or frequently changing content)',
         ])->setDescription('Choose how long content can be cached.');
-        $maxAgeField = NumericField::create('MaxAge', 'Max Age (seconds)')
-            ->setDescription('Default is 120 seconds (2 minutes). Common values: 60 (1 min), 300 (5 mins), 3600 (1 hour), 86400 (1 day).')
+        $maxAgePresetField = DropdownField::create('MaxAgePreset', 'Max Age Duration', [
+            '120' => '2 minutes (120 seconds)',
+            '300' => '5 minutes (300 seconds)',
+            '600' => '10 minutes (600 seconds)',
+            '3600' => '1 hour (3600 seconds)',
+            '86400' => '1 day (86400 seconds)',
+            'custom' => 'Custom (specify in seconds)',
+        ])->setDescription('Choose a common cache duration or select custom to specify your own.');
+        $maxAgeField = NumericField::create('MaxAge', 'Custom Max Age (seconds)')
+            ->setDescription('Enter a custom cache duration in seconds.')
             ->setAttribute('placeholder', '120');
         $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
             ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content (recommended).');
@@ -137,7 +148,13 @@ class CacheControlPageExtension extends DataExtension
             ->andIf('EnableCacheControl')->isChecked()->end();
 
         // Third level: only show max-age related fields when duration is set to 'maxage'
-        $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage')
+        $maxAgePresetField->displayIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked();
+
+        // Fourth level: only show custom max-age input when preset is set to 'custom'
+        $maxAgeField->displayIf('MaxAgePreset')->isEqualTo('custom')
+            ->andIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('OverrideCacheControl')->isChecked()
             ->andIf('EnableCacheControl')->isChecked();
 
@@ -154,6 +171,7 @@ class CacheControlPageExtension extends DataExtension
             $enableCacheField,
             $cacheTypeWrapper,
             $cacheDurationWrapper,
+            $maxAgePresetField,
             $maxAgeField,
             $mustRevalidateField,
         ]);
@@ -187,6 +205,7 @@ class CacheControlPageExtension extends DataExtension
                 $this->owner->CacheType = $siteConfig->CacheType ?: 'public';
                 $this->owner->CacheDuration = $siteConfig->CacheDuration ?: 'maxage';
                 $this->owner->MaxAge = $siteConfig->MaxAge ?: 120;
+                $this->owner->MaxAgePreset = $siteConfig->MaxAgePreset ?: '120';
                 $this->owner->EnableMustRevalidate = $siteConfig->EnableMustRevalidate;
             }
         }
@@ -255,7 +274,13 @@ class CacheControlPageExtension extends DataExtension
 
         // Add max-age if using maxage duration
         if ($this->owner->CacheDuration === 'maxage') {
-            $maxAge = (int)$this->owner->MaxAge ?: 120;
+            // Use preset value unless 'custom' is selected, then use MaxAge field
+            $maxAge = 120; // fallback default
+            if ($this->owner->MaxAgePreset === 'custom') {
+                $maxAge = (int)$this->owner->MaxAge ?: 120;
+            } else {
+                $maxAge = (int)$this->owner->MaxAgePreset ?: 120;
+            }
             $directives[] = 'max-age=' . $maxAge;
         }
 

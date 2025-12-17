@@ -43,7 +43,8 @@ class CacheControlPageExtensionTest extends SapphireTest
         $page->EnableCacheControl = true;
         $page->CacheType = 'private';
         $page->CacheDuration = 'maxage';
-        $page->MaxAge = 300;
+        $page->MaxAgePreset = '300';
+        $page->EnableMustRevalidate = false;
         $page->write();
 
         $header = $page->getCacheControlHeader();
@@ -56,7 +57,9 @@ class CacheControlPageExtensionTest extends SapphireTest
         $siteConfig->EnableCacheControl = true;
         $siteConfig->CacheType = 'public';
         $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = 'custom';
         $siteConfig->MaxAge = 7200;
+        $siteConfig->EnableMustRevalidate = false;
         $siteConfig->write();
 
         $page = SiteTree::create();
@@ -99,6 +102,7 @@ class CacheControlPageExtensionTest extends SapphireTest
         $siteConfig->EnableCacheControl = true;
         $siteConfig->CacheType = 'public';
         $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = 'custom';
         $siteConfig->MaxAge = 9999;
         $siteConfig->write();
 
@@ -107,7 +111,9 @@ class CacheControlPageExtensionTest extends SapphireTest
         $page->EnableCacheControl = true;
         $page->CacheType = 'private';
         $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = 'custom';
         $page->MaxAge = 60;
+        $page->EnableMustRevalidate = false;
         $page->write();
 
         $header = $page->getCacheControlHeader();
@@ -121,7 +127,8 @@ class CacheControlPageExtensionTest extends SapphireTest
         $siteConfig->EnableCacheControl = true;
         $siteConfig->CacheType = 'public';
         $siteConfig->CacheDuration = 'maxage';
-        $siteConfig->MaxAge = 120;
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
         $siteConfig->write();
 
         $page = SiteTree::create();
@@ -140,6 +147,8 @@ class CacheControlPageExtensionTest extends SapphireTest
         $page->EnableCacheControl = true;
         $page->CacheType = 'private';
         $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->EnableMustRevalidate = false;
         $page->write();
 
         $description = $page->getEffectiveCacheControlDescription();
@@ -159,7 +168,7 @@ class CacheControlPageExtensionTest extends SapphireTest
         $siteConfig->EnableCacheControl = true;
         $siteConfig->CacheType = 'public';
         $siteConfig->CacheDuration = 'maxage';
-        $siteConfig->MaxAge = 3600;
+        $siteConfig->MaxAgePreset = '3600';
         $siteConfig->write();
 
         // Create page with override enabled but cache control disabled

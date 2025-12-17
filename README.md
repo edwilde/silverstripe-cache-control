@@ -37,10 +37,10 @@ Navigate to **Settings > Cache Control** in the CMS to configure default cache h
 
 - **Enable Cache Control**: Master switch for the entire site
 - **Cache Type**: Choose between Public (CDN + browser) or Private (browser only)
-- **Enable Max Age**: Control how long content is cached
-- **Max Age**: Set the cache duration in seconds (default: 120)
-- **Enable Must Revalidate**: Force validation when cache expires
-- **Enable No Store**: Prevent all caching (overrides other settings)
+- **Cache Duration**: Choose between Max Age (time-based caching) or No Store (no caching)
+- **Max Age Duration**: Select from common preset durations (2 min, 5 min, 10 min, 1 hour, 1 day) or choose Custom
+- **Custom Max Age**: When "Custom" is selected, enter your own cache duration in seconds
+- **Enable Must Revalidate**: Force validation when cache expires (recommended)
 
 ### Page-specific Overrides
 
@@ -59,17 +59,19 @@ The page will show whether settings are inherited from site config or overridden
 - **Private**: Content can only be cached by the user's browser. Use for personalized content.
 
 ### Max Age
-Specifies how long (in seconds) the content can be cached before it must be revalidated. Common values:
-- 60 = 1 minute
-- 300 = 5 minutes
-- 3600 = 1 hour
-- 86400 = 1 day
+Specifies how long (in seconds) the content can be cached before it must be revalidated. The module provides a dropdown with common preset values for ease of use:
+- **2 minutes** (120 seconds) - Default, good for frequently updated content
+- **5 minutes** (300 seconds) - Balance between freshness and performance
+- **10 minutes** (600 seconds) - For moderately static content
+- **1 hour** (3600 seconds) - For content that changes infrequently
+- **1 day** (86400 seconds) - For highly static content
+- **Custom** - Enter your own value in seconds for specific requirements
 
 ### Must Revalidate (Recommended)
 Forces browsers to check with the server when the cache expires, rather than serving potentially stale content. **This is enabled by default and recommended for most scenarios** to ensure users receive fresh content when the cache expires.
 
-### No Store
-Completely prevents caching. Use for sensitive or rapidly changing content. This overrides all other caching directives.
+### Cache Duration: No Store
+Completely prevents caching. Use for sensitive or rapidly changing content. When "No Store" is selected, all other caching options (max-age, must-revalidate) are ignored and the Cache-Control header will only contain "no-store".
 
 ## Technical Details
 

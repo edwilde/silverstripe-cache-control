@@ -84,7 +84,10 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
    - If `CacheDuration` is `'nostore'` → return `"no-store"` only (overrides everything else)
 3. **Build directives array** (if using maxage):
    - Add cache type (`public` or `private`)
-   - Add `max-age={value}` (defaults to 120 if not set)
+   - Add `max-age={value}`:
+     - If `MaxAgePreset` is `'custom'`, use the `MaxAge` field value
+     - Otherwise, use the preset value from `MaxAgePreset` (120, 300, 600, 3600, 86400)
+     - Defaults to 120 if neither is set
    - Add `must-revalidate` if `EnableMustRevalidate` is true
 4. **Join directives** with `, ` and return as string
 
@@ -290,8 +293,11 @@ vendor/bin/sake dev/build flush=1
 Access via CMS:
 1. Navigate to **Settings > Cache Control**
 2. Enable cache control
-3. Configure site-wide defaults
-4. Override per-page in **Page > Cache Control** tab
+3. Choose cache type (public/private)
+4. Select cache duration (max-age or no-store)
+5. If using max-age, select a preset duration or choose custom
+6. Configure must-revalidate option (recommended to keep enabled)
+7. Override per-page in **Page > Cache Control** tab
 
 ### Production Considerations
 

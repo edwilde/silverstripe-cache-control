@@ -282,6 +282,9 @@ curl -I http://yoursite.com/page
 
 - Follow PSR-4 autoloading standards
 - Use SilverStripe 5 conventions
+- **Use `DataExtension` for extensions that add database fields** to DataObjects (SiteTree, SiteConfig, etc.)
+- Use `Extension` only for extensions that don't need database fields (e.g., ContentController extensions)
+- **Note**: `DataExtension` is NOT deprecated (see [GitHub Issue #11050](https://github.com/silverstripe/silverstripe-framework/issues/11050))
 - Add clear descriptions for all CMS fields (for non-technical users)
 - Keep methods focused (single responsibility)
 - Use early returns to reduce nesting

@@ -62,8 +62,8 @@ class CacheControlSiteConfigExtension extends DataExtension
         ]);
         
         // Apply display logic
-        $cacheTypeField->displayIf('EnableCacheControl')->isChecked()->end();
-        $cacheDurationField->displayIf('EnableCacheControl')->isChecked()->end();
+        $cacheTypeField->displayIf('EnableCacheControl')->isEqualTo("1")->end();
+        $cacheDurationField->displayIf('EnableCacheControl')->isEqualTo("1")->end();
         $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
         $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
     }

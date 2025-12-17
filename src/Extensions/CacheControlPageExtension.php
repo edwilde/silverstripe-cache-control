@@ -73,14 +73,14 @@ class CacheControlPageExtension extends DataExtension
         ]);
         
         // Apply display logic
-        $pageHeaderField->displayIf('OverrideCacheControl')->isChecked()->end();
-        $pageInfoField->displayIf('OverrideCacheControl')->isChecked()->end();
-        $enableCacheField->displayIf('OverrideCacheControl')->isChecked()->end();
-        $cacheTypeField->displayIf('OverrideCacheControl')->isChecked()
-            ->andIf('EnableCacheControl')->isChecked()
+        $pageHeaderField->displayIf('OverrideCacheControl')->isEqualTo("1")->end();
+        $pageInfoField->displayIf('OverrideCacheControl')->isEqualTo("1")->end();
+        $enableCacheField->displayIf('OverrideCacheControl')->isEqualTo("1")->end();
+        $cacheTypeField->displayIf('OverrideCacheControl')->isEqualTo("1")
+            ->andIf('EnableCacheControl')->isEqualTo("1")
             ->end();
-        $cacheDurationField->displayIf('OverrideCacheControl')->isChecked()
-            ->andIf('EnableCacheControl')->isChecked()
+        $cacheDurationField->displayIf('OverrideCacheControl')->isEqualTo("1")
+            ->andIf('EnableCacheControl')->isEqualTo("1")
             ->end();
         $maxAgeField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
         $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')->end();

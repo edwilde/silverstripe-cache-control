@@ -96,6 +96,20 @@ Example: `feat: add s-maxage support for CDN caching`
 - Run `dev/build?flush=1` after code changes
 - Check that extensions are properly applied
 
+## File Creation Guidelines
+
+**NEVER use `cat` to create files.** Always use the `create` tool or appropriate file creation methods.
+
+Examples of what NOT to do:
+```bash
+cat > file.php << 'EOF'  # ❌ WRONG
+echo "content" > file.php  # ❌ WRONG
+```
+
+Correct approach:
+- Use the `create` tool provided by the environment
+- Use proper file creation APIs
+
 ## Module-Specific Guidelines
 
 ### Cache Header Priority

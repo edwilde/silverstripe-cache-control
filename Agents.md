@@ -197,8 +197,20 @@ curl -I http://yoursite.com/page
 - Add clear descriptions for all CMS fields (for non-technical users)
 - Keep methods focused (single responsibility)
 - Use early returns to reduce nesting
-- Add PHPDoc blocks for public methods
 - Prefer composition over inheritance
+
+**Documentation Requirements** (IMPORTANT):
+- **All classes must have a masthead** explaining purpose, features, and usage
+- **All public and protected methods must have PHPDoc blocks** including:
+  - Description of what the method does
+  - `@param` tags for all parameters with types and descriptions
+  - `@return` tag with type and description
+  - `@throws` tags if applicable
+- **Add inline comments** for complex logic or non-obvious code
+- **Explain display logic patterns** when using conditional field visibility
+- **Code must be readable by humans** - prioritize clarity over brevity
+- Use descriptive variable names
+- Break complex expressions into well-named intermediate variables
 
 ### Git Workflow
 

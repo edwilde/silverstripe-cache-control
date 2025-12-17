@@ -19,13 +19,13 @@
 
 namespace Edwilde\CacheControls\Extensions;
 
+use SilverStripe\Core\Extension;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\HeaderField;
 use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
-use SilverStripe\ORM\DataExtension;
 use SilverStripe\SiteConfig\SiteConfig;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 
@@ -35,7 +35,7 @@ use UncleCheese\DisplayLogic\Forms\Wrapper;
  * Provides granular cache control at the page level, with the ability to override
  * site-wide settings. When override is disabled, pages inherit site config settings.
  */
-class CacheControlPageExtension extends DataExtension
+class CacheControlPageExtension extends Extension
 {
     /**
      * Database fields for page-level cache control
@@ -163,7 +163,11 @@ class CacheControlPageExtension extends DataExtension
      *
      * This provides a better user experience by starting with the current site defaults
      * rather than empty/default values. Only triggers when OverrideCacheControl changes
-     * from false to true.
+     * from false to true, and only for fields that were previously null/empty.
+     *
+     * Important: We check isInDB() to distinguish between "never been set" (new records)
+     * and "explicitly set to false/empty" (edited records). This prevents overwriting
+     * intentional user choices like unchecking EnableCacheControl.
      *
      * @return void
      */
@@ -172,23 +176,20 @@ class CacheControlPageExtension extends DataExtension
         parent::onBeforeWrite();
 
         // Pre-fill with site settings when override is first enabled
+        // Only do this if OverrideCacheControl just changed from false to true
         if ($this->owner->isChanged('OverrideCacheControl') && $this->owner->OverrideCacheControl) {
             $siteConfig = SiteConfig::current_site_config();
+            
+            // Check if this is a new override (record exists but override values were never set)
+            // We use the original value to see if it was previously false/null
+            $isNewOverride = !$this->owner->getChangedFields()['OverrideCacheControl']['before'];
 
-            // Only pre-fill if values haven't been explicitly set yet
-            if (!$this->owner->getField('EnableCacheControl')) {
+            // Only pre-fill when first enabling override, not on subsequent edits
+            if ($isNewOverride) {
                 $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
-            }
-            if (!$this->owner->getField('CacheType')) {
                 $this->owner->CacheType = $siteConfig->CacheType ?: 'public';
-            }
-            if (!$this->owner->getField('CacheDuration')) {
                 $this->owner->CacheDuration = $siteConfig->CacheDuration ?: 'maxage';
-            }
-            if (!$this->owner->getField('MaxAge')) {
                 $this->owner->MaxAge = $siteConfig->MaxAge ?: 120;
-            }
-            if (!$this->owner->getField('EnableMustRevalidate')) {
                 $this->owner->EnableMustRevalidate = $siteConfig->EnableMustRevalidate;
             }
         }

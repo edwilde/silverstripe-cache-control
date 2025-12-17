@@ -20,13 +20,13 @@
 
 namespace Edwilde\CacheControls\Extensions;
 
+use SilverStripe\Core\Extension;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\HeaderField;
 use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
-use SilverStripe\ORM\DataExtension;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 
 /**
@@ -35,7 +35,7 @@ use UncleCheese\DisplayLogic\Forms\Wrapper;
  * Provides default cache control settings that apply to all pages unless
  * overridden at the page level.
  */
-class CacheControlSiteConfigExtension extends DataExtension
+class CacheControlSiteConfigExtension extends Extension
 {
     /**
      * Database fields for site-wide cache control

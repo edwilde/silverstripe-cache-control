@@ -50,11 +50,7 @@ class CacheControlPageExtension extends DataExtension
             
             CheckboxField::create('OverrideCacheControl', 'Override Site Cache Settings')
                 ->setDescription('Enable this to set custom cache control for this specific page, overriding site-wide settings.'),
-        ]);
-
-
-
-        $fields->addFieldsToTab('Root.CacheControl', [
+            
             HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3)
                 ->displayIf('OverrideCacheControl')->isChecked()->end(),
             

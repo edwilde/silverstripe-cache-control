@@ -153,8 +153,9 @@ class CacheControlSiteConfigExtension extends DataExtension
             ]
         );
         
-        // Only show Vary section when cache control is enabled
-        $varySection->displayIf('EnableCacheControl')->isChecked();
+        // Wrap Vary section to control visibility with display logic
+        $varyWrapper = Wrapper::create($varySection);
+        $varyWrapper->displayIf('EnableCacheControl')->isChecked()->end();
 
         $fields->addFieldsToTab('Root.CacheControl', [
             HeaderField::create('CacheControlHeader', 'Cache-Control Settings', 2),
@@ -169,7 +170,7 @@ class CacheControlSiteConfigExtension extends DataExtension
             $maxAgePresetField,
             $maxAgeField,
             $mustRevalidateField,
-            $varySection,
+            $varyWrapper,
         ]);
     }
 

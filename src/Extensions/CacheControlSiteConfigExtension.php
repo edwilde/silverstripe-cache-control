@@ -38,7 +38,8 @@ class CacheControlSiteConfigExtension extends DataExtension
             ),
             
             CheckboxField::create('EnableCacheControl', 'Enable Cache Control')
-                ->setDescription('Turn on cache control headers for this site. When disabled, no cache headers will be added.'),
+                ->setDescription('Turn on cache control headers for this site. When disabled, no cache headers will be added.')
+                ->setAttribute('onchange', 'toggleCacheFields()'),
             
             OptionsetField::create('CacheType', 'Cache Type', [
                 'public' => 'Public - Allow browsers and CDNs to cache (recommended for public pages)',

@@ -55,10 +55,7 @@ class CacheControlSiteConfigExtension extends DataExtension
      * Cache control is disabled by default to avoid unintended caching behavior
      * Must-revalidate is enabled by default as recommended for most scenarios
      *
-     * These defaults can be overridden via YML config. See README for examples.
-     *
      * @var array
-     * @config
      */
     private static $defaults = [
         'EnableCacheControl' => false,

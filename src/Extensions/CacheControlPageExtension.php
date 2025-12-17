@@ -19,7 +19,7 @@
 
 namespace Edwilde\CacheControls\Extensions;
 
-use SilverStripe\Core\Extension;
+use SilverStripe\ORM\DataExtension;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\HeaderField;
@@ -35,7 +35,7 @@ use UncleCheese\DisplayLogic\Forms\Wrapper;
  * Provides granular cache control at the page level, with the ability to override
  * site-wide settings. When override is disabled, pages inherit site config settings.
  */
-class CacheControlPageExtension extends Extension
+class CacheControlPageExtension extends DataExtension
 {
     /**
      * Database fields for page-level cache control
@@ -182,7 +182,9 @@ class CacheControlPageExtension extends Extension
             
             // Check if this is a new override (record exists but override values were never set)
             // We use the original value to see if it was previously false/null
-            $isNewOverride = !$this->owner->getChangedFields()['OverrideCacheControl']['before'];
+            $changedFields = $this->owner->getChangedFields();
+            $isNewOverride = isset($changedFields['OverrideCacheControl']) && 
+                            !$changedFields['OverrideCacheControl']['before'];
 
             // Only pre-fill when first enabling override, not on subsequent edits
             if ($isNewOverride) {

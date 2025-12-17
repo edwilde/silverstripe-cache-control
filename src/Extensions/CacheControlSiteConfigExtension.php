@@ -137,10 +137,9 @@ class CacheControlSiteConfigExtension extends DataExtension
 
         $directives = [];
 
-        // no-store overrides everything else
+        // no-store overrides everything else - just return no-store alone
         if ($this->owner->CacheDuration === 'nostore') {
-            $directives[] = 'no-store';
-            return implode(', ', $directives);
+            return 'no-store';
         }
 
         // Add cache type (public/private)

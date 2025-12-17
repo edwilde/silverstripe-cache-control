@@ -76,20 +76,57 @@ class CacheControlContentControllerExtension extends Extension
      */
     private function applyCacheControl($header)
     {
+        // Debug logging
+        file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
+            "[%s] applyCacheControl called with: %s\n",
+            date('Y-m-d H:i:s'),
+            $header
+        ), FILE_APPEND);
+        
+        // Get the HTTPCacheControlMiddleware singleton to configure cache behavior
+        $cacheControl = \SilverStripe\Control\Middleware\HTTPCacheControlMiddleware::singleton();
+        
+        // Handle no-store directive FIRST (prevents all caching)
+        if (strpos($header, 'no-store') !== false) {
+            $cacheControl->disableCache(true);
+            file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
+                "[%s] Called disableCache(true) for no-store\n",
+                date('Y-m-d H:i:s')
+            ), FILE_APPEND);
+            return;
+        }
+        
         // Extract max-age value from header string
         $maxAge = 0;
         if (preg_match('/max-age=(\d+)/', $header, $matches)) {
             $maxAge = (int)$matches[1];
         }
         
-        // Get the HTTPCacheControlMiddleware singleton to configure cache behavior
-        $cacheControl = \SilverStripe\Control\Middleware\HTTPCacheControlMiddleware::singleton();
+        file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
+            "[%s] Extracted max-age: %d\n",
+            date('Y-m-d H:i:s'),
+            $maxAge
+        ), FILE_APPEND);
         
         // Apply private or public cache directive
         if (strpos($header, 'private') !== false) {
             $cacheControl->privateCache(true);
+            // Manually set max-age for private cache
+            if ($maxAge > 0) {
+                $cacheControl->setMaxAge($maxAge);
+            }
+            file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
+                "[%s] Called privateCache(true) and setMaxAge(%d)\n",
+                date('Y-m-d H:i:s'),
+                $maxAge
+            ), FILE_APPEND);
         } else {
             $cacheControl->publicCache(true, $maxAge);
+            file_put_contents(BASE_PATH . '/cache-debug.log', sprintf(
+                "[%s] Called publicCache(true, %d)\n",
+                date('Y-m-d H:i:s'),
+                $maxAge
+            ), FILE_APPEND);
         }
         
         // Handle must-revalidate directive
@@ -100,11 +137,7 @@ class CacheControlContentControllerExtension extends Extension
         } else {
             // Add if present in our header
             $cacheControl->setStateDirective('public', 'must-revalidate', true);
-        }
-        
-        // Handle no-store directive (prevents all caching)
-        if (strpos($header, 'no-store') !== false) {
-            $cacheControl->setStateDirective('disabled', 'no-store', true);
+            $cacheControl->setStateDirective('private', 'must-revalidate', true);
         }
     }
 }

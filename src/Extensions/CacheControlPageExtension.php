@@ -200,12 +200,15 @@ class CacheControlPageExtension extends DataExtension
      * Returns either page-specific cache control or falls back to site config.
      * This is the main method called by the middleware to determine what header to set.
      *
+     * When override is enabled, always use page settings even if cache control is disabled.
+     * This allows editors to explicitly disable caching on specific pages.
+     *
      * @return string|null The cache control header value, or null if none set
      */
     public function getCacheControlHeader()
     {
-        // Only use page-specific settings if override is explicitly enabled
-        if ($this->owner->OverrideCacheControl && $this->owner->EnableCacheControl) {
+        // If override is enabled, use page-specific settings (even if disabled)
+        if ($this->owner->OverrideCacheControl) {
             return $this->getPageCacheControlHeader();
         }
 

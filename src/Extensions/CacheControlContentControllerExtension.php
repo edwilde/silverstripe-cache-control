@@ -38,22 +38,15 @@ class CacheControlContentControllerExtension extends Extension
      */
     public function onAfterInit()
     {
-        error_log("CacheControlContentControllerExtension::onAfterInit called");
-        
         $page = $this->owner->data();
         if (!$page || !($page instanceof SiteTree)) {
-            error_log("No page or not SiteTree");
             return;
         }
 
-        error_log("Page: " . $page->Title . ", Override: " . ($page->OverrideCacheControl ? 'yes' : 'no'));
-
         // Check if page has override enabled
         if ($page->OverrideCacheControl && $page->hasExtension(CacheControlPageExtension::class)) {
-            error_log("Applying page settings");
             $this->applyPageSettings($page);
         } else {
-            error_log("Applying site settings");
             $this->applySiteSettings();
         }
     }

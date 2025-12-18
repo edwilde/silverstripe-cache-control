@@ -116,9 +116,33 @@ vendor/bin/phpunit
 The module includes comprehensive PHPUnit tests covering:
 - SiteConfig extension functionality
 - Page extension functionality
-- Middleware behavior
 - Cache header generation logic
 - Override and fallback mechanisms
+
+### Manual Testing of Cache Headers
+
+Cache headers are only applied in `test` or `live` environment modes. To verify headers are being set correctly:
+
+```bash
+# Test site-level settings (page without override)
+curl -s -D - -k "https://yoursite.local/page-without-override" | grep -i "^cache-control\|^expires\|^vary"
+
+# Test page-level override
+curl -s -D - -k "https://yoursite.local/page-with-override" | grep -i "^cache-control\|^expires\|^vary"
+```
+
+Expected output when cache control is enabled with max-age=300:
+```
+cache-control: public, must-revalidate, max-age=300
+expires: Thu, 18 Dec 2025 05:00:00 GMT
+vary: Accept-Encoding
+```
+
+**Note:** Headers will not appear in `dev` mode. Switch to `test` or `live` mode by setting:
+```php
+// app/_config.php or .env
+Director::set_environment_type('test');
+```
 
 ## License
 

@@ -19,7 +19,8 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^9.5",
-        "silverstripe/recipe-testing": "^3.0"
+        "silverstripe/recipe-testing": "^3.0",
+        "silverstripe/sqlite3": "^3.0"
     },
     "autoload": {
         "psr-4": {
@@ -29,7 +30,10 @@
     "autoload-dev": {
         "psr-4": {
             "Edwilde\\CacheControls\\Tests\\": "tests/"
-        }
+        },
+        "classmap": [
+            "tests/Functional/Page.php"
+        ]
     },
     "extra": {
         "expose": [

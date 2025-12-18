@@ -20,11 +20,12 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $fields = $siteConfig->getCMSFields();
 
         $this->assertNotNull($fields->fieldByName('Root.CacheControl.EnableCacheControl'));
+        // Use dataFieldByName to find fields regardless of wrapper/composite field nesting
         $this->assertNotNull($fields->dataFieldByName('CacheType'));
         $this->assertNotNull($fields->dataFieldByName('CacheDuration'));
-        $this->assertNotNull($fields->fieldByName('Root.CacheControl.MaxAgePreset'));
-        $this->assertNotNull($fields->fieldByName('Root.CacheControl.MaxAge'));
-        $this->assertNotNull($fields->fieldByName('Root.CacheControl.EnableMustRevalidate'));
+        $this->assertNotNull($fields->dataFieldByName('MaxAgePreset'));
+        $this->assertNotNull($fields->dataFieldByName('MaxAge'));
+        $this->assertNotNull($fields->dataFieldByName('EnableMustRevalidate'));
     }
 
     public function testDefaultValues()

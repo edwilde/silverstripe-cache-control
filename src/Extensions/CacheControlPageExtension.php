@@ -212,14 +212,29 @@ class CacheControlPageExtension extends DataExtension
                           !$changedFields['OverrideCacheControl']['before'];
 
             // Only pre-fill when first enabling override, not on subsequent edits
+            // AND only if the user hasn't already set values (e.g., in tests or programmatically)
             if ($wasDisabled) {
                 $siteConfig = SiteConfig::current_site_config();
-                $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
-                $this->owner->CacheType = $siteConfig->CacheType ?: 'public';
-                $this->owner->CacheDuration = $siteConfig->CacheDuration ?: 'maxage';
-                $this->owner->MaxAge = $siteConfig->MaxAge ?: 120;
-                $this->owner->MaxAgePreset = $siteConfig->MaxAgePreset ?: '120';
-                $this->owner->EnableMustRevalidate = $siteConfig->EnableMustRevalidate;
+                
+                // Only set values that haven't been explicitly changed by the user
+                if (!$this->owner->isChanged('EnableCacheControl')) {
+                    $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
+                }
+                if (!$this->owner->isChanged('CacheType')) {
+                    $this->owner->CacheType = $siteConfig->CacheType ?: 'public';
+                }
+                if (!$this->owner->isChanged('CacheDuration')) {
+                    $this->owner->CacheDuration = $siteConfig->CacheDuration ?: 'maxage';
+                }
+                if (!$this->owner->isChanged('MaxAge')) {
+                    $this->owner->MaxAge = $siteConfig->MaxAge ?: 120;
+                }
+                if (!$this->owner->isChanged('MaxAgePreset')) {
+                    $this->owner->MaxAgePreset = $siteConfig->MaxAgePreset ?: '120';
+                }
+                if (!$this->owner->isChanged('EnableMustRevalidate')) {
+                    $this->owner->EnableMustRevalidate = $siteConfig->EnableMustRevalidate;
+                }
             }
         }
     }

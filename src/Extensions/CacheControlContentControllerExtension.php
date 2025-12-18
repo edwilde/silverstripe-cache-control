@@ -3,17 +3,11 @@
 /**
  * Cache Control Content Controller Extension
  *
- * Extends ContentController to intercept page rendering and apply cache control headers.
- * This is where the configured cache settings are actually translated into HTTP headers.
+ * Hooks into ContentController to apply CMS-configured cache control settings
+ * using the nswdpc/silverstripe-cache-headers middleware.
  *
- * Flow:
- * 1. Page is rendered via ContentController
- * 2. afterCallActionHandler is triggered
- * 3. Extension retrieves cache header from page (which may be page-specific or site-wide)
- * 4. Extension applies cache header using SilverStripe's HTTPCacheControlMiddleware
- *
- * This approach ensures cache headers are set at the right time in the request lifecycle,
- * after the page content is ready but before the response is sent.
+ * This extension bridges between our CMS UI (configured via SiteConfig and Page extensions)
+ * and the underlying cache header middleware provided by nswdpc.
  *
  * @package Edwilde\CacheControls
  * @author Ed Wilde
@@ -21,156 +15,200 @@
 
 namespace Edwilde\CacheControls\Extensions;
 
-use SilverStripe\Control\HTTP;
+use SilverStripe\Control\Middleware\HTTPCacheControlMiddleware;
 use SilverStripe\Core\Extension;
 use SilverStripe\SiteConfig\SiteConfig;
+use SilverStripe\CMS\Model\SiteTree;
 
 /**
- * Controller extension for applying cache control headers
+ * Content Controller extension for applying cache control
  *
- * Hooks into the controller's action handler to apply configured
- * cache control headers to the response.
+ * Applies cache control headers based on CMS configuration at either
+ * the page level (if overridden) or site level (default).
  */
 class CacheControlContentControllerExtension extends Extension
 {
     /**
-     * Hook after action handler to apply cache control headers
+     * Apply cache control settings after controller initialization
      *
-     * This method is called after the controller action has been executed
-     * but before the response is sent. It retrieves the cache control header
-     * from the page and applies it.
+     * Determines whether to use page-level or site-level cache control settings
+     * and applies them to the HTTP response via the middleware.
      *
-     * @param HTTPRequest $request The current request
-     * @param string $action The action that was called
-     * @param mixed $result The result of the action
      * @return void
      */
-    public function afterCallActionHandler($request, $action, $result)
+    public function onAfterInit()
     {
+        error_log("CacheControlContentControllerExtension::onAfterInit called");
+        
         $page = $this->owner->data();
-        
-        // Check if page has cache control capabilities
-        if ($page && $page->hasMethod('getCacheControlHeader')) {
-            $cacheHeader = $page->getCacheControlHeader();
-            
-            if ($cacheHeader) {
-                // Apply the cache control header to the response
-                $this->applyCacheControl($cacheHeader);
-                
-                // Apply Vary header (always from site config, not page-level)
-                $this->applyVaryHeader();
-            }
-        }
-    }
-    
-    /**
-     * Parse and apply cache control header
-     *
-     * Takes a cache control header string (e.g., "public, max-age=120")
-     * and applies it using SilverStripe's HTTPCacheControlMiddleware.
-     *
-     * Handles:
-     * - public/private cache directives
-     * - max-age values
-     * - must-revalidate directive
-     * - no-store directive
-     * - Expires header (set to match max-age per HTTP spec)
-     *
-     * @param string $header The cache control header value to apply
-     * @return void
-     */
-    private function applyCacheControl($header)
-    {
-        // Get the HTTPCacheControlMiddleware singleton to configure cache behavior
-        $cacheControl = \SilverStripe\Control\Middleware\HTTPCacheControlMiddleware::singleton();
-        
-        // Handle no-store directive FIRST (prevents all caching)
-        if (strpos($header, 'no-store') !== false) {
-            $cacheControl->disableCache(true);
+        if (!$page || !($page instanceof SiteTree)) {
+            error_log("No page or not SiteTree");
             return;
         }
-        
-        // Extract max-age value from header string
-        $maxAge = 0;
-        if (preg_match('/max-age=(\d+)/', $header, $matches)) {
-            $maxAge = (int)$matches[1];
-        }
-        
-        // Apply private or public cache directive
-        if (strpos($header, 'private') !== false) {
-            // For private cache, we need to manually configure it
-            // because privateCache() doesn't accept maxAge parameter
-            $cacheControl->privateCache(true);
-            if ($maxAge > 0) {
-                $cacheControl->setMaxAge($maxAge);
-                // Add Expires header to match max-age (HTTP/1.0 compatibility)
-                $this->setExpiresHeader($maxAge);
-            }
+
+        error_log("Page: " . $page->Title . ", Override: " . ($page->OverrideCacheControl ? 'yes' : 'no'));
+
+        // Check if page has override enabled
+        if ($page->OverrideCacheControl && $page->hasExtension(CacheControlPageExtension::class)) {
+            error_log("Applying page settings");
+            $this->applyPageSettings($page);
         } else {
-            // For public cache, we can pass maxAge directly
-            $cacheControl->publicCache(true, $maxAge);
-            if ($maxAge > 0) {
-                // Add Expires header to match max-age (HTTP/1.0 compatibility)
-                $this->setExpiresHeader($maxAge);
-            }
-        }
-        
-        // Handle must-revalidate directive
-        if (strpos($header, 'must-revalidate') === false) {
-            // Remove if not in our header
-            $cacheControl->removeStateDirective('public', 'must-revalidate');
-            $cacheControl->removeStateDirective('private', 'must-revalidate');
-        } else {
-            // Add if present in our header
-            $cacheControl->setStateDirective('public', 'must-revalidate', true);
-            $cacheControl->setStateDirective('private', 'must-revalidate', true);
+            error_log("Applying site settings");
+            $this->applySiteSettings();
         }
     }
-    
+
     /**
-     * Set the Expires header based on max-age value
+     * Apply cache control settings from the current page
      *
-     * The Expires header provides HTTP/1.0 compatibility and should match
-     * the Cache-Control max-age directive. It's calculated as the current
-     * time plus the max-age value.
-     *
-     * @param int $maxAge The max-age value in seconds
+     * @param SiteTree $page The current page
      * @return void
      */
-    private function setExpiresHeader($maxAge)
+    protected function applyPageSettings(SiteTree $page)
+    {
+        $middleware = HTTPCacheControlMiddleware::singleton();
+
+        if (!$page->EnableCacheControl) {
+            // Cache control disabled for this page - use private, no-store
+            $middleware->disableCache(true);
+            return;
+        }
+
+        // Set cache state (public/private)
+        if ($page->CacheType === 'public') {
+            $middleware->publicCache(true);
+        } else {
+            $middleware->privateCache(true);
+        }
+
+        // Handle cache duration
+        if ($page->CacheDuration === 'nostore') {
+            $middleware->setNoStore(true);
+        } else {
+            // max-age enabled
+            $maxAge = $this->getMaxAgeValue($page->MaxAgePreset, $page->MaxAge);
+            $middleware->setMaxAge($maxAge);
+
+            // Add Expires header to match max-age
+            $this->setExpiresHeader($maxAge);
+
+            // Must revalidate
+            if ($page->EnableMustRevalidate) {
+                $middleware->setMustRevalidate(true);
+            }
+        }
+
+        // Apply Vary headers
+        $this->applyVaryHeaders($page);
+    }
+
+    /**
+     * Apply cache control settings from site config
+     *
+     * @return void
+     */
+    protected function applySiteSettings()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        if (!$siteConfig || !$siteConfig->hasExtension(CacheControlSiteConfigExtension::class)) {
+            return;
+        }
+
+        $middleware = HTTPCacheControlMiddleware::singleton();
+
+        if (!$siteConfig->EnableCacheControl) {
+            // Cache control disabled site-wide - use private, no-store
+            $middleware->disableCache(true);
+            return;
+        }
+
+        // Set cache state (public/private)
+        if ($siteConfig->CacheType === 'public') {
+            $middleware->publicCache(true);
+        } else {
+            $middleware->privateCache(true);
+        }
+
+        // Handle cache duration
+        if ($siteConfig->CacheDuration === 'nostore') {
+            $middleware->setNoStore(true);
+        } else {
+            // max-age enabled
+            $maxAge = $this->getMaxAgeValue($siteConfig->MaxAgePreset, $siteConfig->MaxAge);
+            $middleware->setMaxAge($maxAge);
+
+            // Add Expires header to match max-age
+            $this->setExpiresHeader($maxAge);
+
+            // Must revalidate
+            if ($siteConfig->EnableMustRevalidate) {
+                $middleware->setMustRevalidate(true);
+            }
+        }
+
+        // Apply Vary headers
+        $this->applyVaryHeaders($siteConfig);
+    }
+
+    /**
+     * Get the max-age value based on preset or custom value
+     *
+     * @param string $preset The preset value
+     * @param int $customValue The custom max-age value
+     * @return int The max-age in seconds
+     */
+    protected function getMaxAgeValue($preset, $customValue)
+    {
+        if ($preset === 'custom') {
+            return (int)$customValue ?: 120;
+        }
+        return (int)$preset;
+    }
+
+    /**
+     * Set the Expires header to match the max-age
+     *
+     * @param int $maxAge Max age in seconds
+     * @return void
+     */
+    protected function setExpiresHeader($maxAge)
     {
         $response = $this->owner->getResponse();
         if ($response) {
-            $expiresTime = time() + $maxAge;
-            $response->addHeader('Expires', gmdate('D, d M Y H:i:s', $expiresTime) . ' GMT');
+            $expires = gmdate('D, d M Y H:i:s', time() + $maxAge) . ' GMT';
+            $response->addHeader('Expires', $expires);
         }
     }
-    
+
     /**
-     * Apply Vary header from site config
+     * Apply Vary headers based on CMS configuration
      *
-     * The Vary header is always sourced from site-wide settings (not page-level).
-     * It tells caches which request headers affect the response, allowing separate
-     * cache entries for different variations (e.g., different encodings, protocols).
-     *
-     * Replaces SilverStripe's default Vary headers with the configured ones.
-     *
+     * @param SiteTree|SiteConfig $config The configuration object
      * @return void
      */
-    private function applyVaryHeader()
+    protected function applyVaryHeaders($config)
     {
-        $siteConfig = SiteConfig::current_site_config();
-        
-        if ($siteConfig->hasMethod('getVaryHeader')) {
-            $varyHeader = $siteConfig->getVaryHeader();
-            
-            $response = $this->owner->getResponse();
-            if ($response && $varyHeader) {
-                // Remove any existing Vary headers set by SilverStripe
-                $response->removeHeader('Vary');
-                // Add our configured Vary header
-                $response->addHeader('Vary', $varyHeader);
-            }
+        $varyHeaders = [];
+
+        if ($config->VaryAcceptEncoding) {
+            $varyHeaders[] = 'Accept-Encoding';
+        }
+
+        if ($config->VaryXForwardedProtocol) {
+            $varyHeaders[] = 'X-Forwarded-Protocol';
+        }
+
+        if ($config->VaryCookie) {
+            $varyHeaders[] = 'Cookie';
+        }
+
+        if ($config->VaryAuthorization) {
+            $varyHeaders[] = 'Authorization';
+        }
+
+        if (!empty($varyHeaders)) {
+            $middleware = HTTPCacheControlMiddleware::singleton();
+            $middleware->setVary(implode(', ', $varyHeaders));
         }
     }
 }

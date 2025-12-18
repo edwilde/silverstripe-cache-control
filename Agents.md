@@ -19,7 +19,9 @@
 - **PHP**: 8.1+
 - **SilverStripe Framework**: 5.0+
 - **SilverStripe CMS**: 5.0+
-- **Dependencies**: unclecheese/display-logic ^3.0
+- **Dependencies**: 
+  - unclecheese/display-logic ^3.0 (conditional CMS field visibility)
+  - nswdpc/silverstripe-cache-headers ^1.0 (robust cache header middleware)
 - **Testing**: PHPUnit 9.5+
 
 ## Architecture
@@ -28,52 +30,64 @@
 
 ```
 src/
-├── Extensions/
-│   ├── CacheControlSiteConfigExtension.php  # Site-wide settings
-│   └── CacheControlPageExtension.php        # Page-level overrides
-├── Middleware/
-│   └── CacheControlMiddleware.php           # Applies headers to responses
-└── Traits/
-    └── CacheControlTrait.php                # Shared header generation logic
+└── Extensions/
+    ├── CacheControlSiteConfigExtension.php       # Site-wide cache settings UI
+    ├── CacheControlPageExtension.php             # Page-level override UI
+    └── CacheControlContentControllerExtension.php # Applies settings via nswdpc middleware
 ```
 
 ### Design Patterns
 
 **DataExtension Pattern**: Used for `CacheControlSiteConfigExtension` and `CacheControlPageExtension` to add cache control functionality to existing SilverStripe models (SiteConfig and SiteTree).
 
-**Middleware Pattern**: `CacheControlMiddleware` intercepts HTTP requests/responses to apply appropriate Cache-Control headers automatically.
+**Extension Pattern**: Used for `CacheControlContentControllerExtension` to hook into ContentController and apply cache settings without adding database fields.
 
-**Trait Pattern**: `CacheControlTrait` contains the core business logic for building cache control headers, promoting DRY (Don't Repeat Yourself) principles.
+**Middleware Integration**: Uses `nswdpc/silverstripe-cache-headers` module for robust HTTP cache header management, including form detection, error page handling, and respecting existing headers.
 
 **Strategy Pattern**: The module checks if a page has an override enabled, then decides whether to use page-specific settings or fall back to site-wide defaults.
 
 ### Data Flow
 
-1. **Request comes in** → Middleware intercepts
-2. **Middleware gets current page** from ContentController
+1. **Request comes in** → nswdpc middleware is registered to intercept
+2. **ContentController initializes** → `CacheControlContentControllerExtension::onAfterInit()` is triggered
 3. **Check for page override**:
-   - If `OverrideCacheControl` is enabled → Use page settings (even if cache is disabled)
-   - Otherwise → Use site-wide SiteConfig settings
-4. **Generate header** from page or site config settings
-5. **Apply header** to HTTP response (unless already set)
+   - If `OverrideCacheControl` is enabled → Use page settings (via `applyPageSettings()`)
+   - Otherwise → Use site-wide SiteConfig settings (via `applySiteSettings()`)
+4. **Apply settings** to `HTTPCacheControlMiddleware` singleton:
+   - Set cache state (public/private or disabled)
+   - Set cache duration (max-age or no-store)
+   - Add Expires header to match max-age
+   - Apply Vary headers based on CMS configuration
+5. **Middleware processes response** → nswdpc module applies configured headers, respecting:
+   - Existing headers (doesn't override)
+   - Forms on page (disables cache)
+   - Error pages (configurable)
+   - User login state
 
-**Important**: When override is enabled at page level but `EnableCacheControl` is false, the method returns `null` (no caching). This allows editors to explicitly disable caching on specific pages even when site-wide caching is enabled.
+**Important**: When override is enabled at page level but `EnableCacheControl` is false, the middleware is set to `disableCache(true)` (private, no-store). This allows editors to explicitly disable caching on specific pages even when site-wide caching is enabled.
 
 ### Database Schema
 
 **SiteConfig Table Extensions**:
 ```php
-'EnableCacheControl' => 'Boolean'                    // Master switch (default: false)
-'CacheType' => 'Enum("public,private","public")'    // Cache visibility (default: public)
-'CacheDuration' => 'Enum("maxage,nostore","maxage")'// Duration strategy (default: maxage)
-'MaxAge' => 'Int'                                    // Cache duration in seconds (default: 120)
-'EnableMustRevalidate' => 'Boolean'                  // Force revalidation (default: true, recommended)
+'EnableCacheControl' => 'Boolean'                      // Master switch (default: false)
+'CacheType' => 'Enum("public,private","public")'      // Cache visibility (default: public)
+'CacheDuration' => 'Enum("maxage,nostore","maxage")'  // Duration strategy (default: maxage)
+'MaxAge' => 'Int'                                      // Custom cache duration in seconds (default: 120)
+'MaxAgePreset' => 'Enum(...,"120")'                    // Preset durations: 120, 300, 600, 3600, 86400, custom
+'EnableMustRevalidate' => 'Boolean'                    // Force revalidation (default: true, recommended)
+'VaryAcceptEncoding' => 'Boolean'                      // Vary: Accept-Encoding (default: true)
+'VaryXForwardedProtocol' => 'Boolean'                  // Vary: X-Forwarded-Protocol (default: false)
+'VaryCookie' => 'Boolean'                              // Vary: Cookie (default: false)
+'VaryAuthorization' => 'Boolean'                       // Vary: Authorization (default: false)
 ```
 
-**SiteTree Table Extensions** (same fields as above plus):
+**SiteTree Table Extensions** (same fields as SiteConfig plus):
 ```php
-'OverrideCacheControl' => 'Boolean'                  // Enable page-specific override (default: false)
+'OverrideCacheControl' => 'Boolean'                    // Enable page-specific override (default: false)
 ```
+
+Note: Page-level extensions don't include Vary headers - those are site-wide only.
 
 ### Cache Header Generation Logic
 
@@ -125,12 +139,7 @@ vendor/bin/phpunit tests/Unit/ --testdox
 
 **Test-Driven Development (TDD)**: This module follows TDD principles - write tests first, then implement features.
 
-**Unit Tests** (8 tests, all passing):
-- Located in `tests/Unit/CacheControlTraitTest.php`
-- Test core header generation logic
-- No database required
-- Fast and reliable
-- Use anonymous classes to mock objects with the trait
+**Unit Tests**: Not currently used as header logic is delegated to nswdpc middleware
 
 **Integration Tests**:
 - Located in `tests/Extensions/` and `tests/Middleware/`
@@ -152,15 +161,11 @@ vendor/bin/phpunit tests/Unit/ --testdox
 
 **Running Tests**:
 ```bash
-# Unit tests only (no database needed)
-vendor/bin/phpunit tests/Unit/ --testdox
-
 # All tests (requires full SilverStripe environment)
 vendor/bin/phpunit --testdox
 
 # Specific test suites
 vendor/bin/phpunit tests/Extensions/ --testdox
-vendor/bin/phpunit tests/Functional/ --testdox
 ```
 
 **Testing Checklist for New Features**:
@@ -192,13 +197,26 @@ $wrapper->displayIf('EnableCacheControl')->isChecked()->end();
 - Respects existing Cache-Control headers (doesn't override)
 - Gracefully handles non-page requests
 
-**Middleware Registration** (in `_config/config.yml`):
+**Extension Registration** (in `_config/config.yml`):
 ```yaml
-SilverStripe\Core\Injector\Injector:
-  SilverStripe\Control\Director:
-    properties:
-      Middlewares:
-        CacheControlMiddleware: '%$Edwilde\CacheControls\Middleware\CacheControlMiddleware'
+---
+Name: edwilde-cache-controls
+After:
+  - '#nswdpc-cache-headers'  # Must load after nswdpc module
+---
+# Apply extensions for CMS configuration UI
+SilverStripe\SiteConfig\SiteConfig:
+  extensions:
+    - Edwilde\CacheControls\Extensions\CacheControlSiteConfigExtension
+
+SilverStripe\CMS\Model\SiteTree:
+  extensions:
+    - Edwilde\CacheControls\Extensions\CacheControlPageExtension
+
+# Apply controller extension to set cache headers via nswdpc middleware
+SilverStripe\CMS\Controllers\ContentController:
+  extensions:
+    - Edwilde\CacheControls\Extensions\CacheControlContentControllerExtension
 ```
 
 ### Common Development Tasks
@@ -217,14 +235,14 @@ SilverStripe\Core\Injector\Injector:
        ->displayIf('EnableCacheControl')->isChecked()->end()
    ```
 
-3. Update `CacheControlTrait::buildCacheControlHeader()`:
+3. Update `CacheControlContentControllerExtension` to apply the directive via nswdpc middleware:
    ```php
-   if ($this->EnableNewDirective) {
-       $directives[] = 'new-directive';
+   if ($config->EnableNewDirective) {
+       $middleware->setNewDirective(true);
    }
    ```
 
-4. Add unit tests in `tests/Unit/CacheControlTraitTest.php`
+4. Add integration tests in `tests/Extensions/` to verify behavior
 
 5. Run dev/build: `vendor/bin/sake dev/build flush=1`
 
@@ -246,7 +264,8 @@ curl -I http://yoursite.com/page
 - Keep methods focused (single responsibility)
 - Use early returns to reduce nesting
 - Prefer composition over inheritance
-- **NEVER use `cat` to create or edit files** - always use proper file creation tools/APIs
+- **CRITICAL: NEVER use `cat`, `echo >`, or shell redirection to create or edit files** - always use proper file creation tools/APIs/editors
+- All file operations must use the `create` tool or proper programming language APIs
 
 **Documentation Requirements** (IMPORTANT):
 - **All classes must have a masthead** explaining purpose, features, and usage

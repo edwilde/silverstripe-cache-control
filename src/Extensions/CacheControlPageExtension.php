@@ -27,6 +27,7 @@ use SilverStripe\Forms\HeaderField;
 use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
+use SilverStripe\Forms\ToggleCompositeField;
 use SilverStripe\SiteConfig\SiteConfig;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 

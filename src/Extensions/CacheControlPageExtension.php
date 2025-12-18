@@ -162,6 +162,22 @@ class CacheControlPageExtension extends DataExtension
             ->andIf('OverrideCacheControl')->isChecked()
             ->andIf('EnableCacheControl')->isChecked();
 
+        // Group page-specific settings in a collapsible section
+        $pageCacheControlSection = ToggleCompositeField::create('PageCacheControlSettings', 'Cache-Control Header (Advanced)',
+            [
+                $cacheTypeWrapper,
+                $cacheDurationWrapper,
+                $maxAgePresetField,
+                $maxAgeField,
+                $mustRevalidateField,
+            ]
+        )->setStartClosed(true);
+        
+        // Wrap page cache control section to control visibility with display logic
+        $pageCacheControlWrapper = Wrapper::create($pageCacheControlSection);
+        $pageCacheControlWrapper->displayIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked()->end();
+
         $fields->addFieldsToTab('Root.CacheControl', [
             $headerField,
             $currentCacheControlField,
@@ -169,11 +185,7 @@ class CacheControlPageExtension extends DataExtension
             $pageHeaderField,
             $pageInfoField,
             $enableCacheField,
-            $cacheTypeWrapper,
-            $cacheDurationWrapper,
-            $maxAgePresetField,
-            $maxAgeField,
-            $mustRevalidateField,
+            $pageCacheControlWrapper,
         ]);
     }
 

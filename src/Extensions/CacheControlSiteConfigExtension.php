@@ -135,6 +135,21 @@ class CacheControlSiteConfigExtension extends DataExtension
         $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('EnableCacheControl')->isChecked();
 
+        // Main cache control settings in a collapsible section
+        $cacheControlSection = ToggleCompositeField::create('CacheControlSettings', 'Cache-Control Header (Advanced)',
+            [
+                $cacheTypeWrapper,
+                $cacheDurationWrapper,
+                $maxAgePresetField,
+                $maxAgeField,
+                $mustRevalidateField,
+            ]
+        )->setStartClosed(true);
+        
+        // Wrap cache control section to control visibility with display logic
+        $cacheControlWrapper = Wrapper::create($cacheControlSection);
+        $cacheControlWrapper->displayIf('EnableCacheControl')->isChecked()->end();
+
         // Vary header fields in a collapsible section
         $varySection = ToggleCompositeField::create('VarySettings', 'Vary Header (Advanced)',
             [
@@ -151,7 +166,7 @@ class CacheControlSiteConfigExtension extends DataExtension
                 CheckboxField::create('VaryAuthorization', 'Authorization')
                     ->setDescription('Store separate cache entries based on authentication. Use for protected content.'),
             ]
-        );
+        )->setStartClosed(true);
         
         // Wrap Vary section to control visibility with display logic
         $varyWrapper = Wrapper::create($varySection);
@@ -165,11 +180,7 @@ class CacheControlSiteConfigExtension extends DataExtension
             ),
             CheckboxField::create('EnableCacheControl', 'Enable Cache Control')
                 ->setDescription('Turn on cache control headers for this site. When disabled, no cache headers will be added.'),
-            $cacheTypeWrapper,
-            $cacheDurationWrapper,
-            $maxAgePresetField,
-            $maxAgeField,
-            $mustRevalidateField,
+            $cacheControlWrapper,
             $varyWrapper,
         ]);
     }

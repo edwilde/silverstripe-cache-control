@@ -16,6 +16,7 @@ SilverStripe\CMS\Model\SiteTree:
 SilverStripe\CMS\Controllers\ContentController:
   extensions:
     - Edwilde\CacheControls\Extensions\CacheControlContentControllerExtension
+    - Edwilde\CacheControls\Extensions\DevCacheBypassExtension
 
 # Use nswdpc's middleware and configuration
 # By default, caching is disabled (state: 'enabled' with no directives set)

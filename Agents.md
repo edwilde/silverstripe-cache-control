@@ -33,7 +33,8 @@ src/
 └── Extensions/
     ├── CacheControlSiteConfigExtension.php       # Site-wide cache settings UI
     ├── CacheControlPageExtension.php             # Page-level override UI
-    └── CacheControlContentControllerExtension.php # Applies settings via nswdpc middleware
+    ├── CacheControlContentControllerExtension.php # Applies settings via nswdpc middleware
+    └── DevCacheBypassExtension.php                # Optional: Enable cache headers in dev mode
 ```
 
 ### Design Patterns
@@ -134,6 +135,28 @@ composer install
 # Run unit tests
 vendor/bin/phpunit tests/Unit/ --testdox
 ```
+
+### Development Environment
+
+**Cache Headers and Environment Modes**:
+
+By default, the nswdpc module (which this module extends) only applies cache headers when the SilverStripe environment is in `test` or `live` mode. This can make development and testing difficult.
+
+**Dev Mode Bypass Feature**:
+
+To enable cache headers in `dev` mode for testing purposes, add to your `.env` file:
+
+```
+CACHE_HEADERS_IN_DEV="true"
+```
+
+When enabled:
+- Cache headers will be applied even in `dev` mode
+- All security rules still apply (forms, restricted pages, etc.)
+- Pages that shouldn't be cached won't be cached
+- Useful for rapid testing without switching environment modes
+
+**Implementation**: The `DevCacheBypassExtension` checks for the environment variable and applies cache logic that would normally only run on the LIVE stage. It maintains the same security checks for restricted pages, forms, and login states.
 
 ### Testing Strategy
 

@@ -138,11 +138,25 @@ expires: Thu, 18 Dec 2025 05:00:00 GMT
 vary: Accept-Encoding
 ```
 
-**Note:** Headers will not appear in `dev` mode. Switch to `test` or `live` mode by setting:
-```php
-// app/_config.php or .env
-Director::set_environment_type('test');
-```
+**Note:** Headers will not appear in `dev` mode by default. You have two options:
+
+1. **Switch to test/live mode** (recommended for production-like testing):
+   ```
+   # In your .env file
+   SS_ENVIRONMENT_TYPE="test"
+   ```
+
+2. **Enable dev mode bypass** (for rapid development/testing):
+   ```
+   # In your .env file
+   CACHE_HEADERS_IN_DEV="true"
+   ```
+   
+   When `CACHE_HEADERS_IN_DEV` is enabled:
+   - Cache headers will be applied in dev mode
+   - All the same rules for restricted pages apply
+   - Pages with forms or restricted access won't be cached
+   - This is useful for testing cache behavior without switching environment modes
 
 ## License
 

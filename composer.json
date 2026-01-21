@@ -1,5 +1,5 @@
 {
-    "name": "edwilde/silverstripe-cache-controls",
+    "name": "edwilde/silverstripe-cache-control",
     "description": "SilverStripe module for managing cache-control headers at site and page level",
     "type": "silverstripe-vendormodule",
     "keywords": [
@@ -24,12 +24,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Edwilde\\CacheControls\\": "src/"
+            "Edwilde\\CacheControl\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Edwilde\\CacheControls\\Tests\\": "tests/"
+            "Edwilde\\CacheControl\\Tests\\": "tests/"
         }
     },
     "extra": {

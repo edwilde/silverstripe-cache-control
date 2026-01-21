@@ -1,9 +1,9 @@
 <?php
 
-namespace Edwilde\CacheControls\Tests\Extensions;
+namespace Edwilde\CacheControl\Tests\Extensions;
 
-use Edwilde\CacheControls\Extensions\CacheControlPageExtension;
-use Edwilde\CacheControls\Extensions\CacheControlSiteConfigExtension;
+use Edwilde\CacheControl\Extensions\CacheControlPageExtension;
+use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\SiteConfig\SiteConfig;
@@ -178,7 +178,7 @@ class CacheControlPageExtensionTest extends SapphireTest
         $page->write();
 
         $header = $page->getCacheControlHeader();
-        
+
         // Should return null, NOT fall back to site config
         $this->assertNull($header, 'When override is enabled but cache control is disabled, should return null');
     }

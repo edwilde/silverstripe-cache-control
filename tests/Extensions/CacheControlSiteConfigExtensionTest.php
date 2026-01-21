@@ -1,8 +1,8 @@
 <?php
 
-namespace Edwilde\CacheControls\Tests\Extensions;
+namespace Edwilde\CacheControl\Tests\Extensions;
 
-use Edwilde\CacheControls\Extensions\CacheControlSiteConfigExtension;
+use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\SiteConfig\SiteConfig;
 
@@ -31,7 +31,7 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
     public function testDefaultValues()
     {
         $siteConfig = SiteConfig::current_site_config();
-        
+
         $this->assertFalse((bool)$siteConfig->EnableCacheControl, 'Cache control should be disabled by default');
         $this->assertEquals(120, $siteConfig->MaxAge, 'Default max-age should be 120 seconds');
     }

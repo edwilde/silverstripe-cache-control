@@ -16,11 +16,11 @@
  * Set in your .env file:
  * CACHE_HEADERS_IN_DEV="true"
  *
- * @package Edwilde\CacheControls
+ * @package Edwilde\CacheControl
  * @author Ed Wilde
  */
 
-namespace Edwilde\CacheControls\Extensions;
+namespace Edwilde\CacheControl\Extensions;
 
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\Middleware\HTTPCacheControlMiddleware;

@@ -1,4 +1,4 @@
-# SilverStripe Cache Controls
+# SilverStripe Cache Control
 
 A SilverStripe CMS 5 module that gives content editors control over HTTP Cache-Control headers at both site-wide and page-specific levels.
 
@@ -20,7 +20,7 @@ A SilverStripe CMS 5 module that gives content editors control over HTTP Cache-C
 ## Installation
 
 ```bash
-composer require edwilde/silverstripe-cache-controls
+composer require edwilde/silverstripe-cache-control
 ```
 
 After installation, run:
@@ -151,7 +151,7 @@ vary: Accept-Encoding
    # In your .env file
    CACHE_HEADERS_IN_DEV="true"
    ```
-   
+
    When `CACHE_HEADERS_IN_DEV` is enabled:
    - Cache headers will be applied in dev mode
    - All the same rules for restricted pages apply
@@ -177,7 +177,7 @@ If you're developing this module and using a symlink in a SilverStripe project:
 1. The module's `vendor/` directory should be excluded from SilverStripe's class manifest
 2. Either remove the vendor directory from the module when symlinking:
    ```bash
-   cd ~/Sites/modules/silverstripe-cache-controls
+   cd ~/Sites/modules/silverstripe-cache-control
    rm -rf vendor/
    ```
 

@@ -14,11 +14,11 @@
  * - Enable must-revalidate directive
  * - Conditional field visibility using display logic
  *
- * @package Edwilde\CacheControls
+ * @package Edwilde\CacheControl
  * @author Ed Wilde
  */
 
-namespace Edwilde\CacheControls\Extensions;
+namespace Edwilde\CacheControl\Extensions;
 
 use SilverStripe\ORM\DataExtension;
 use SilverStripe\Forms\CheckboxField;
@@ -126,12 +126,12 @@ class CacheControlSiteConfigExtension extends DataExtension
         // Only show max-age related fields when duration is set to 'maxage'
         $maxAgePresetField->displayIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('EnableCacheControl')->isChecked();
-        
+
         // Only show custom max-age input when preset is set to 'custom'
         $maxAgeField->displayIf('MaxAgePreset')->isEqualTo('custom')
             ->andIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('EnableCacheControl')->isChecked();
-        
+
         $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('EnableCacheControl')->isChecked();
 
@@ -145,7 +145,7 @@ class CacheControlSiteConfigExtension extends DataExtension
                 $mustRevalidateField,
             ]
         )->setStartClosed(true);
-        
+
         // Wrap cache control section to control visibility with display logic
         $cacheControlWrapper = Wrapper::create($cacheControlSection);
         $cacheControlWrapper->displayIf('EnableCacheControl')->isChecked()->end();
@@ -167,7 +167,7 @@ class CacheControlSiteConfigExtension extends DataExtension
                     ->setDescription('Store separate cache entries based on authentication. Use for protected content.'),
             ]
         )->setStartClosed(true);
-        
+
         // Wrap Vary section to control visibility with display logic
         $varyWrapper = Wrapper::create($varySection);
         $varyWrapper->displayIf('EnableCacheControl')->isChecked()->end();

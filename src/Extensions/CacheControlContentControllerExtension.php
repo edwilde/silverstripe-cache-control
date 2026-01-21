@@ -9,11 +9,11 @@
  * This extension bridges between our CMS UI (configured via SiteConfig and Page extensions)
  * and the underlying cache header middleware provided by nswdpc.
  *
- * @package Edwilde\CacheControls
+ * @package Edwilde\CacheControl
  * @author Ed Wilde
  */
 
-namespace Edwilde\CacheControls\Extensions;
+namespace Edwilde\CacheControl\Extensions;
 
 use SilverStripe\Control\Middleware\HTTPCacheControlMiddleware;
 use SilverStripe\Core\Extension;

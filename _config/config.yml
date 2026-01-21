@@ -1,22 +1,22 @@
 ---
-Name: edwilde-cache-controls
+Name: edwilde-cache-control
 After:
   - '#nswdpc-cache-headers'
 ---
 # Apply extensions for CMS configuration
 SilverStripe\SiteConfig\SiteConfig:
   extensions:
-    - Edwilde\CacheControls\Extensions\CacheControlSiteConfigExtension
+    - Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension
 
 SilverStripe\CMS\Model\SiteTree:
   extensions:
-    - Edwilde\CacheControls\Extensions\CacheControlPageExtension
+    - Edwilde\CacheControl\Extensions\CacheControlPageExtension
 
 # Apply our controller extension to apply CMS settings
 SilverStripe\CMS\Controllers\ContentController:
   extensions:
-    - Edwilde\CacheControls\Extensions\CacheControlContentControllerExtension
-    - Edwilde\CacheControls\Extensions\DevCacheBypassExtension
+    - Edwilde\CacheControl\Extensions\CacheControlContentControllerExtension
+    - Edwilde\CacheControl\Extensions\DevCacheBypassExtension
 
 # Use nswdpc's middleware and configuration
 # By default, caching is disabled (state: 'enabled' with no directives set)

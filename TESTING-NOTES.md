@@ -15,12 +15,12 @@ The following tests are failing because they were written for the old architectu
 
 #### Page Extension Tests
 1. **testGetCacheControlHeaderUsesPageOverride** - Expects direct header string, needs update to test middleware configuration
-2. **testGetCacheControlHeaderWithOverrideNoStore** - Expects header string but gets null  
+2. **testGetCacheControlHeaderWithOverrideNoStore** - Expects header string but gets null
 3. **testPageOverrideIgnoresSiteConfig** - Tests header generation, needs to test middleware application instead
 4. **testGetEffectiveCacheControlHeaderDescriptionWithOverride** - Description logic needs update
 5. **testOverrideWithCacheControlDisabledReturnsNull** - Logic changed, now sets middleware to disableCache(true)
 
-#### Site Config Extension Tests  
+#### Site Config Extension Tests
 6. **testExtensionAddsFields** - Field lookup issue with nested field structure
 
 ### Action Required
@@ -37,9 +37,9 @@ This is **not a code bug** - the functionality works correctly in practice. The 
 ```bash
 # From module directory (requires DB):
 cd ~/sites/nzta-ap
-vendor/bin/phpunit vendor/edwilde/silverstripe-cache-controls/tests/ --testdox
+vendor/bin/phpunit vendor/edwilde/silverstripe-cache-control/tests/ --testdox
 
 # Or from standalone module:
-cd /path/to/silverstripe-cache-controls
+cd /path/to/silverstripe-cache-control
 vendor/bin/phpunit --testdox  # Requires sqlite3 extension
 ```

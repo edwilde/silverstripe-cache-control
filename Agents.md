@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**SilverStripe Cache Controls** is a SilverStripe CMS 5 module that provides content editors with control over HTTP Cache-Control headers. It enables cache management at both site-wide and page-specific levels through an intuitive CMS interface.
+**SilverStripe Cache Control** is a SilverStripe CMS 5 module that provides content editors with control over HTTP Cache-Control headers. It enables cache management at both site-wide and page-specific levels through an intuitive CMS interface.
 
 ### Key Features
 - Site-wide default cache control settings via SiteConfig
@@ -19,7 +19,7 @@
 - **PHP**: 8.1+
 - **SilverStripe Framework**: 5.0+
 - **SilverStripe CMS**: 5.0+
-- **Dependencies**: 
+- **Dependencies**:
   - unclecheese/display-logic ^3.0 (conditional CMS field visibility)
   - nswdpc/silverstripe-cache-headers ^1.0 (robust cache header middleware)
 - **Testing**: PHPUnit 9.5+
@@ -126,8 +126,8 @@ The module applies the following HTTP headers:
 
 ```bash
 # Clone repository
-git clone git@github.com:edwilde/silverstripe-cache-controls.git
-cd silverstripe-cache-controls
+git clone git@github.com:edwilde/silverstripe-cache-control.git
+cd silverstripe-cache-control
 
 # Install dependencies
 composer install
@@ -223,23 +223,23 @@ $wrapper->displayIf('EnableCacheControl')->isChecked()->end();
 **Extension Registration** (in `_config/config.yml`):
 ```yaml
 ---
-Name: edwilde-cache-controls
+Name: edwilde-cache-control
 After:
   - '#nswdpc-cache-headers'  # Must load after nswdpc module
 ---
 # Apply extensions for CMS configuration UI
 SilverStripe\SiteConfig\SiteConfig:
   extensions:
-    - Edwilde\CacheControls\Extensions\CacheControlSiteConfigExtension
+    - Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension
 
 SilverStripe\CMS\Model\SiteTree:
   extensions:
-    - Edwilde\CacheControls\Extensions\CacheControlPageExtension
+    - Edwilde\CacheControl\Extensions\CacheControlPageExtension
 
 # Apply controller extension to set cache headers via nswdpc middleware
 SilverStripe\CMS\Controllers\ContentController:
   extensions:
-    - Edwilde\CacheControls\Extensions\CacheControlContentControllerExtension
+    - Edwilde\CacheControl\Extensions\CacheControlContentControllerExtension
 ```
 
 ### Common Development Tasks
@@ -324,7 +324,7 @@ git commit -m "feat: add s-maxage support for CDN caching"
 
 ```bash
 # Via Composer
-composer require edwilde/silverstripe-cache-controls
+composer require edwilde/silverstripe-cache-control
 
 # Run dev/build
 vendor/bin/sake dev/build flush=1
@@ -452,4 +452,4 @@ Ed Wilde <ed@example.com>
 
 ---
 
-*This Agents.md file is designed to help AI agents and developers understand, maintain, and extend the SilverStripe Cache Controls module.*
+*This Agents.md file is designed to help AI agents and developers understand, maintain, and extend the SilverStripe Cache Control module.*

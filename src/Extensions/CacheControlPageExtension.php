@@ -13,11 +13,11 @@
  * - Clear visual indication of current cache control header
  * - Conditional field visibility using display logic
  *
- * @package Edwilde\CacheControls
+ * @package Edwilde\CacheControl
  * @author Ed Wilde
  */
 
-namespace Edwilde\CacheControls\Extensions;
+namespace Edwilde\CacheControl\Extensions;
 
 use SilverStripe\ORM\DataExtension;
 use SilverStripe\Forms\CheckboxField;
@@ -173,7 +173,7 @@ class CacheControlPageExtension extends DataExtension
                 $mustRevalidateField,
             ]
         )->setStartClosed(true);
-        
+
         // Wrap page cache control section to control visibility with display logic
         $pageCacheControlWrapper = Wrapper::create($pageCacheControlSection);
         $pageCacheControlWrapper->displayIf('OverrideCacheControl')->isChecked()
@@ -208,14 +208,14 @@ class CacheControlPageExtension extends DataExtension
         // Only do this if OverrideCacheControl just changed from false to true
         if ($this->owner->isChanged('OverrideCacheControl') && $this->owner->OverrideCacheControl) {
             $changedFields = $this->owner->getChangedFields();
-            $wasDisabled = isset($changedFields['OverrideCacheControl']) && 
+            $wasDisabled = isset($changedFields['OverrideCacheControl']) &&
                           !$changedFields['OverrideCacheControl']['before'];
 
             // Only pre-fill when first enabling override, not on subsequent edits
             // AND only if the user hasn't already set values (e.g., in tests or programmatically)
             if ($wasDisabled) {
                 $siteConfig = SiteConfig::current_site_config();
-                
+
                 // Only set values that haven't been explicitly changed by the user
                 if (!$this->owner->isChanged('EnableCacheControl')) {
                     $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
@@ -336,7 +336,7 @@ class CacheControlPageExtension extends DataExtension
             $reason = $this->owner->OverrideCacheControl && !$this->owner->EnableCacheControl
                 ? 'Cache control is disabled for this specific page.'
                 : 'No cache control is currently set for this page.';
-            
+
             return $reason . ' Browsers will use their default caching behavior.';
         }
 

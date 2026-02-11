@@ -11,16 +11,16 @@
     ],
     "license": "BSD-3-Clause",
     "require": {
-        "php": "^8.1",
-        "silverstripe/framework": "^5.0",
-        "silverstripe/cms": "^5.0",
-        "unclecheese/display-logic": "^3.0",
-        "nswdpc/silverstripe-cache-headers": "^1.0"
+        "php": "^8.3",
+        "silverstripe/framework": "^6.0",
+        "silverstripe/cms": "^6.0",
+        "unclecheese/display-logic": "^4.0",
+        "nswdpc/silverstripe-cache-headers": "dev-ss6"
     },
     "require-dev": {
-        "phpunit/phpunit": "^9.5",
-        "silverstripe/recipe-testing": "^3.0",
-        "silverstripe/sqlite3": "^3.0"
+        "phpunit/phpunit": "^11.3",
+        "silverstripe/recipe-testing": "^4.0",
+        "silverstripe/sqlite3": "dev-main"
     },
     "autoload": {
         "psr-4": {

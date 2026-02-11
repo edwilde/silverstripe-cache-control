@@ -2,7 +2,11 @@
 
 ## Project Overview
 
-**SilverStripe Cache Control** is a SilverStripe CMS 5 module that provides content editors with control over HTTP Cache-Control headers. It enables cache management at both site-wide and page-specific levels through an intuitive CMS interface.
+**SilverStripe Cache Control** is a SilverStripe CMS 5/6 module that provides content editors with control over HTTP Cache-Control headers. It enables cache management at both site-wide and page-specific levels through an intuitive CMS interface.
+
+### Branch Workflow
+- **`main`** branch targets **CMS 6** (PHP 8.3+, PHPUnit 11)
+- **`cms5`** branch targets **CMS 5** (PHP 8.1+, PHPUnit 9.5)
 
 ### Key Features
 - Site-wide default cache control settings via SiteConfig
@@ -16,13 +20,13 @@
 - Performance-optimized with minimal database queries
 
 ### Technology Stack
-- **PHP**: 8.1+
-- **SilverStripe Framework**: 5.0+
-- **SilverStripe CMS**: 5.0+
+- **PHP**: 8.3+
+- **SilverStripe Framework**: 6.0+
+- **SilverStripe CMS**: 6.0+
 - **Dependencies**:
-  - unclecheese/display-logic ^3.0 (conditional CMS field visibility)
-  - nswdpc/silverstripe-cache-headers ^1.0 (robust cache header middleware)
-- **Testing**: PHPUnit 9.5+
+  - unclecheese/display-logic ^4.0 (conditional CMS field visibility)
+  - nswdpc/silverstripe-cache-headers dev-ss6 (robust cache header middleware — no tagged CMS 6 release yet)
+- **Testing**: PHPUnit 11.3+
 
 ## Architecture
 
@@ -39,9 +43,7 @@ src/
 
 ### Design Patterns
 
-**DataExtension Pattern**: Used for `CacheControlSiteConfigExtension` and `CacheControlPageExtension` to add cache control functionality to existing SilverStripe models (SiteConfig and SiteTree).
-
-**Extension Pattern**: Used for `CacheControlContentControllerExtension` to hook into ContentController and apply cache settings without adding database fields.
+**Extension Pattern**: All three extensions (`CacheControlSiteConfigExtension`, `CacheControlPageExtension`, and `CacheControlContentControllerExtension`) use `SilverStripe\Core\Extension`. In SilverStripe 6, `DataExtension` has been removed — `Extension` now handles both data-bearing and non-data extensions.
 
 **Middleware Integration**: Uses `nswdpc/silverstripe-cache-headers` module for robust HTTP cache header management, including form detection, error page handling, and respecting existing headers.
 
@@ -279,10 +281,8 @@ curl -I http://yoursite.com/page
 ### Code Style Guidelines
 
 - Follow PSR-4 autoloading standards
-- Use SilverStripe 5 conventions
-- **Use `DataExtension` for extensions that add database fields** to DataObjects (SiteTree, SiteConfig, etc.)
-- Use `Extension` only for extensions that don't need database fields (e.g., ContentController extensions)
-- **Note**: `DataExtension` is NOT deprecated (see [GitHub Issue #11050](https://github.com/silverstripe/silverstripe-framework/issues/11050))
+- Use SilverStripe 6 conventions
+- **Use `Extension` for all extensions** — `DataExtension` was deprecated in SilverStripe 5.2 and removed in SilverStripe 6. `Extension` now handles both data-bearing and non-data extensions.
 - Add clear descriptions for all CMS fields (for non-technical users)
 - Keep methods focused (single responsibility)
 - Use early returns to reduce nesting
@@ -426,14 +426,14 @@ php -l src/**/*.php  # Check syntax
 ## Resources
 
 ### Documentation
-- [SilverStripe 5 Documentation](https://docs.silverstripe.org/en/5/)
+- [SilverStripe 6 Documentation](https://docs.silverstripe.org/en/6/)
 - [HTTP Cache-Control Header Spec](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control)
 - [DisplayLogic Module](https://github.com/unclecheese/silverstripe-display-logic)
 
 ### Related SilverStripe Concepts
-- [DataExtensions](https://docs.silverstripe.org/en/5/developer_guides/extending/extensions/)
-- [HTTP Middleware](https://docs.silverstripe.org/en/5/developer_guides/controllers/middlewares/)
-- [SiteConfig](https://docs.silverstripe.org/en/5/developer_guides/configuration/siteconfig/)
+- [Extensions](https://docs.silverstripe.org/en/6/developer_guides/extending/extensions/)
+- [HTTP Middleware](https://docs.silverstripe.org/en/6/developer_guides/controllers/middlewares/)
+- [SiteConfig](https://docs.silverstripe.org/en/6/developer_guides/configuration/siteconfig/)
 
 ### Cache Control Guide
 - **public**: Cacheable by browsers and CDNs

@@ -1,6 +1,6 @@
 # SilverStripe Cache Control
 
-A SilverStripe CMS 5 module that gives content editors control over HTTP Cache-Control headers at both site-wide and page-specific levels.
+A SilverStripe CMS 5/6 module that gives content editors control over HTTP Cache-Control headers at both site-wide and page-specific levels.
 
 ## Features
 
@@ -11,11 +11,19 @@ A SilverStripe CMS 5 module that gives content editors control over HTTP Cache-C
 - **Performance optimized** - minimal database queries
 - **Sensible defaults** - 120 seconds cache time
 
+## Version Compatibility
+
+| Branch | CMS Version | PHP Version |
+|--------|------------|-------------|
+| `main` | CMS 6 | PHP 8.3+ |
+| `cms5` | CMS 5 | PHP 8.1+ |
+
 ## Requirements
 
-- SilverStripe CMS 5.0+
-- PHP 8.1+
-- unclecheese/display-logic ^3.0
+- SilverStripe CMS 6.0+
+- PHP 8.3+
+- unclecheese/display-logic ^4.0
+- nswdpc/silverstripe-cache-headers (CMS 6: `dev-ss6` branch — no tagged release yet)
 
 ## Installation
 

@@ -19,7 +19,7 @@
 
 namespace Edwilde\CacheControl\Extensions;
 
-use SilverStripe\ORM\DataExtension;
+use SilverStripe\Core\Extension;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\DropdownField;
 use SilverStripe\Forms\FieldList;
@@ -37,7 +37,7 @@ use UncleCheese\DisplayLogic\Forms\Wrapper;
  * Provides granular cache control at the page level, with the ability to override
  * site-wide settings. When override is disabled, pages inherit site config settings.
  */
-class CacheControlPageExtension extends DataExtension
+class CacheControlPageExtension extends Extension
 {
     /**
      * Database fields for page-level cache control

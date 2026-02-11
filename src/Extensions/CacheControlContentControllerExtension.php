@@ -69,9 +69,9 @@ class CacheControlContentControllerExtension extends Extension
 
         // Set cache state (public/private)
         if ($page->CacheType === 'public') {
-            $middleware->publicCache(true);
+            $middleware->publicCache();
         } else {
-            $middleware->privateCache(true);
+            $middleware->privateCache();
         }
 
         // Handle cache duration
@@ -117,9 +117,9 @@ class CacheControlContentControllerExtension extends Extension
 
         // Set cache state (public/private)
         if ($siteConfig->CacheType === 'public') {
-            $middleware->publicCache(true);
+            $middleware->publicCache();
         } else {
-            $middleware->privateCache(true);
+            $middleware->privateCache();
         }
 
         // Handle cache duration

@@ -38,7 +38,29 @@ use SilverStripe\SiteConfig\SiteConfig;
 class DevCacheBypassExtension extends Extension
 {
     /**
-     * Runs before nswdpc's ContentControllerExtension::onAfterInit
+     * Reset the dev-mode forcing level before cache control settings are applied
+     *
+     * In dev mode, the framework sets defaultForcingLevel=3 and defaultState=disabled,
+     * which blocks all non-forced cache state changes. When the bypass is enabled,
+     * we override these config values so that the CacheControlContentControllerExtension's
+     * non-forced publicCache()/privateCache() calls can take effect — while still
+     * allowing Silverstripe's session/CSRF protection (disableCache at level 3) to win.
+     *
+     * @return void
+     */
+    public function onBeforeInit()
+    {
+        if (!$this->shouldBypassDevMode()) {
+            return;
+        }
+
+        HTTPCacheControlMiddleware::config()
+            ->set('defaultState', HTTPCacheControlMiddleware::STATE_ENABLED)
+            ->set('defaultForcingLevel', 0);
+    }
+
+    /**
+     * Apply restricted record cache state in dev mode
      *
      * In dev mode with bypass enabled, this applies cache rules
      * that would normally only apply on LIVE stage.
@@ -47,7 +69,6 @@ class DevCacheBypassExtension extends Extension
      */
     public function onAfterInit()
     {
-        // Only apply our bypass logic if enabled
         if (!$this->shouldBypassDevMode()) {
             return;
         }

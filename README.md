@@ -28,8 +28,10 @@ A SilverStripe CMS 5/6 module that gives content editors control over HTTP Cache
 ## Installation
 
 ```bash
-composer require edwilde/silverstripe-cache-control
+composer require edwilde/silverstripe-cache-control:dev-main
 ```
+
+> **Note:** The `nswdpc/silverstripe-cache-headers` dependency currently requires its `dev-ss6` branch for CMS 6 (no tagged release yet). Your project will need `"minimum-stability": "dev"` and `"prefer-stable": true` in its `composer.json`.
 
 After installation, run:
 

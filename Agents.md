@@ -43,7 +43,7 @@ src/
 
 ### Design Patterns
 
-**Extension Pattern**: All three extensions (`CacheControlSiteConfigExtension`, `CacheControlPageExtension`, and `CacheControlContentControllerExtension`) use `SilverStripe\Core\Extension`. In SilverStripe 6, `DataExtension` has been removed — `Extension` now handles both data-bearing and non-data extensions.
+**Extension Pattern**: All extensions (`CacheControlSiteConfigExtension`, `CacheControlPageExtension`, `CacheControlContentControllerExtension`, and `DevCacheBypassExtension`) use `SilverStripe\Core\Extension`. In SilverStripe 6, `DataExtension` has been removed — `Extension` now handles both data-bearing and non-data extensions.
 
 **Middleware Integration**: Uses `nswdpc/silverstripe-cache-headers` module for robust HTTP cache header management, including form detection, error page handling, and respecting existing headers.
 
@@ -134,8 +134,8 @@ cd silverstripe-cache-control
 # Install dependencies
 composer install
 
-# Run unit tests
-vendor/bin/phpunit tests/Unit/ --testdox
+# Run tests
+vendor/bin/phpunit tests/ --testdox
 ```
 
 ### Development Environment
@@ -164,25 +164,17 @@ When enabled:
 
 **Test-Driven Development (TDD)**: This module follows TDD principles - write tests first, then implement features.
 
-**Unit Tests**: Not currently used as header logic is delegated to nswdpc middleware
-
 **Integration Tests**:
-- Located in `tests/Extensions/` and `tests/Middleware/`
+- Located in `tests/Extensions/`
 - Test full SilverStripe integration
 - Require database and SilverStripe environment
-- Test field addition, override logic, and middleware behavior
-
-**Functional Tests** (CRITICAL):
-- Located in `tests/Functional/`
-- **Must test ALL cache directive combinations**:
+- Test field addition, override logic, cache header generation, and middleware behavior
+- Cover all cache directive combinations:
   - Site-wide: public + max-age, private + max-age, no-store
   - Page override: all above combinations
   - Page override with cache disabled
   - Fallback to site config when override disabled
   - Must-revalidate combinations
-- Tests actual HTTP response headers
-- Prevents regressions like "no-store shows public,max-age=0"
-- Essential for validating that header generation AND application both work correctly
 
 **Running Tests**:
 ```bash

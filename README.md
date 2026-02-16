@@ -17,10 +17,10 @@ A Silverstripe CMS module that gives content editors control over HTTP Cache-Con
 
 ## Version Compatibility
 
-| Branch | CMS Version | PHP Version |
-|--------|------------|-------------|
-| `main` | CMS 6 | PHP 8.3+ |
-| `cms5` | CMS 5 | PHP 8.1+ |
+| Version | Branch | CMS Version | PHP Version |
+|---------|--------|-------------|-------------|
+| 2.x     | `main` | CMS 6       | PHP 8.3+    |
+| 1.x     | `cms5` | CMS 5       | PHP 8.1+    |
 
 ## Requirements
 

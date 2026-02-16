@@ -86,6 +86,18 @@ class CacheControlPageExtension extends Extension
      */
     public function updateCMSFields(FieldList $fields)
     {
+        // Remove scaffolded fields — we replace them with custom versions below.
+        // CMS 6 enforces unique field names in FieldList, so these must be removed first.
+        $fields->removeByName([
+            'OverrideCacheControl',
+            'EnableCacheControl',
+            'CacheType',
+            'CacheDuration',
+            'MaxAge',
+            'MaxAgePreset',
+            'EnableMustRevalidate',
+        ]);
+
         // Display the current effective cache control header
         $effectiveHeader = $this->owner->getEffectiveCacheControlDescription();
 

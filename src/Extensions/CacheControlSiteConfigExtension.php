@@ -89,6 +89,21 @@ class CacheControlSiteConfigExtension extends Extension
      */
     public function updateCMSFields(FieldList $fields)
     {
+        // Remove scaffolded fields — we replace them with custom versions below.
+        // CMS 6 enforces unique field names in FieldList, so these must be removed first.
+        $fields->removeByName([
+            'EnableCacheControl',
+            'CacheType',
+            'CacheDuration',
+            'MaxAge',
+            'MaxAgePreset',
+            'EnableMustRevalidate',
+            'VaryAcceptEncoding',
+            'VaryXForwardedProtocol',
+            'VaryCookie',
+            'VaryAuthorization',
+        ]);
+
         $cacheTypeField = OptionsetField::create('CacheType', 'Cache Type', [
             'public' => 'Public - Allow browsers and CDNs to cache (recommended for public pages)',
             'private' => 'Private - Only allow browser caching, not CDN/proxy caching (for user-specific content)',

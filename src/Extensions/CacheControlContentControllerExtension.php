@@ -91,8 +91,11 @@ class CacheControlContentControllerExtension extends Extension
             }
         }
 
-        // Apply Vary headers
-        $this->applyVaryHeaders($page);
+        // Apply Vary headers from site config (Vary is always site-wide, not per-page)
+        $siteConfig = SiteConfig::current_site_config();
+        if ($siteConfig && $siteConfig->hasExtension(CacheControlSiteConfigExtension::class)) {
+            $this->applyVaryHeaders($siteConfig);
+        }
     }
 
     /**

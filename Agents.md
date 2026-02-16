@@ -17,7 +17,7 @@
 - Max-age control with sensible 120-second default
 - Must-revalidate and no-store directives
 - Conditional field visibility using DisplayLogic
-- Performance-optimized with minimal database queries
+- Performance-optimised with minimal database queries
 
 ### Technology Stack
 - **PHP**: 8.3+
@@ -117,10 +117,13 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
 
 The module applies the following HTTP headers:
 
-1. **Cache-Control**: The primary header controlling cache behavior (HTTP/1.1+)
+1. **Cache-Control**: The primary header controlling cache behaviour (HTTP/1.1+)
 2. **Expires**: Set to match Cache-Control max-age for HTTP/1.0 compatibility
+3. **Vary**: Tells caches which request headers affect the response, so separate entries are stored for different variations
 
 **Expires Header**: When max-age is set, the Expires header is automatically calculated as `current_time + max-age` in GMT format. This ensures compatibility with older HTTP/1.0 caches and proxies. Per the HTTP specification, Cache-Control takes precedence over Expires in HTTP/1.1 clients, but both should be present for maximum compatibility.
+
+**Vary Header**: Configured site-wide only (not per-page). Available options: `Accept-Encoding` (default: enabled), `X-Forwarded-Protocol`, `Cookie`, `Authorization`. Even when a page uses page-level cache control overrides, Vary headers are always read from SiteConfig. This ensures consistent cache variation behaviour across the entire site.
 
 ## Development Guide
 
@@ -168,7 +171,7 @@ When enabled:
 - Located in `tests/Extensions/`
 - Test full SilverStripe integration
 - Require database and SilverStripe environment
-- Test field addition, override logic, cache header generation, and middleware behavior
+- Test field addition, override logic, cache header generation, and middleware behaviour
 - Cover all cache directive combinations:
   - Site-wide: public + max-age, private + max-age, no-store
   - Page override: all above combinations
@@ -208,7 +211,7 @@ $wrapper = Wrapper::create($cacheTypeField);
 $wrapper->displayIf('EnableCacheControl')->isChecked()->end();
 ```
 
-**Performance Optimization**:
+**Performance Optimisation**:
 - Middleware checks page override flag first to avoid unnecessary SiteConfig lookups
 - All settings stored as database fields (no complex queries)
 - Respects existing Cache-Control headers (doesn't override)
@@ -259,7 +262,7 @@ SilverStripe\CMS\Controllers\ContentController:
    }
    ```
 
-4. Add integration tests in `tests/Extensions/` to verify behavior
+4. Add integration tests in `tests/Extensions/` to verify behaviour
 
 5. Run dev/build: `vendor/bin/sake dev/build flush=1`
 
@@ -335,9 +338,9 @@ Access via CMS:
 
 ### Production Considerations
 
-- **Test cache behavior** in staging before production
+- **Test cache behaviour** in staging before production
 - **Monitor CDN integration** if using public caching
-- **Consider user-specific content** - use `private` for personalized pages
+- **Consider user-specific content** - use `private` for personalised pages
 - **Coordinate with CDN configuration** - ensure settings align
 - **Plan cache invalidation strategy** when content changes
 

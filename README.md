@@ -1,6 +1,8 @@
-# SilverStripe Cache Control
+# Silverstripe Cache Control
 
-A SilverStripe CMS 5/6 module that gives content editors control over HTTP Cache-Control headers at both site-wide and page-specific levels.
+A Silverstripe CMS module that gives content editors control over HTTP Cache-Control headers at both site-wide and page-specific levels.
+
+![Cache Control UI Screenshot](docs/images/page-cache-control.jpg)
 
 ## Features
 
@@ -8,7 +10,7 @@ A SilverStripe CMS 5/6 module that gives content editors control over HTTP Cache
 - **Page-level cache control overrides** for granular control
 - **User-friendly CMS interface** with clear explanations for non-developers
 - **Conditional field visibility** using DisplayLogic
-- **Performance optimized** - minimal database queries
+- **Performance optimised** - minimal database queries
 - **Sensible defaults** - 120 seconds cache time
 
 ## Version Compatibility
@@ -20,7 +22,7 @@ A SilverStripe CMS 5/6 module that gives content editors control over HTTP Cache
 
 ## Requirements
 
-- SilverStripe CMS 6.0+
+- Silverstripe CMS 6.0+
 - PHP 8.3+
 - unclecheese/display-logic ^4.0
 - nswdpc/silverstripe-cache-headers (CMS 6: `dev-ss6` branch — no tagged release yet)
@@ -28,10 +30,10 @@ A SilverStripe CMS 5/6 module that gives content editors control over HTTP Cache
 ## Installation
 
 ```bash
-composer require edwilde/silverstripe-cache-control:dev-main
+composer require edwilde/silverstripe-cache-control
 ```
 
-> **Note:** The `nswdpc/silverstripe-cache-headers` dependency currently requires its `dev-ss6` branch for CMS 6 (no tagged release yet). Your project will need `"minimum-stability": "dev"` and `"prefer-stable": true` in its `composer.json`.
+>[!NOTE] The `nswdpc/silverstripe-cache-headers` dependency currently requires its `dev-ss6` branch for CMS 6 (no tagged release yet). Your project will need `"minimum-stability": "dev"` and `"prefer-stable": true` in its `composer.json`.
 
 After installation, run:
 
@@ -52,6 +54,17 @@ Navigate to **Settings > Cache Control** in the CMS to configure default cache h
 - **Custom Max Age**: When "Custom" is selected, enter your own cache duration in seconds
 - **Enable Must Revalidate**: Force validation when cache expires (recommended)
 
+### Vary Header Settings
+
+The **Vary Header** section in site-wide settings controls which request headers cause separate cache entries to be stored. This tells browsers and CDNs to cache different versions of a page based on these headers:
+
+- **Accept-Encoding**: Store separate entries for different compression methods (gzip, br, etc). Enabled by default and recommended for most sites.
+- **X-Forwarded-Protocol**: Store separate entries for HTTP vs HTTPS requests.
+- **Cookie**: Store separate entries when cookies differ. Use for personalised content.
+- **Authorization**: Store separate entries based on authentication. Use for protected content.
+
+Vary headers are configured site-wide only — they apply consistently to all pages, including those with page-level cache control overrides.
+
 ### Page-specific Overrides
 
 Each page has a **Cache Control** tab where you can:
@@ -66,7 +79,7 @@ The page will show whether settings are inherited from site config or overridden
 
 ### Public vs Private
 - **Public**: Content can be cached by browsers, CDNs, and proxy servers. Best for pages that are the same for all users.
-- **Private**: Content can only be cached by the user's browser. Use for personalized content.
+- **Private**: Content can only be cached by the user's browser. Use for personalised content.
 
 ### Max Age
 Specifies how long (in seconds) the content can be cached before it must be revalidated. The module provides a dropdown with common preset values for ease of use:
@@ -114,6 +127,21 @@ When max-age is specified, the Expires header is calculated as the current time 
 The middleware runs after request processors to ensure it can detect the current page context. It will not override any Cache-Control headers already set by controllers or other middleware.
 
 ## Development
+
+### Development with Symlinks
+
+If you're developing this module and using a symlink in a Silverstripe project:
+
+1. The module's `vendor/` directory should be excluded from Silverstripe's class manifest
+2. Either remove the vendor directory from the module when symlinking:
+   ```bash
+   cd ~/Sites/modules/silverstripe-cache-control
+   rm -rf vendor/
+   ```
+
+3. Or configure your project to exclude the symlinked vendor directory
+
+This prevents class conflicts when Silverstripe scans for classes.
 
 ### Running Tests
 
@@ -166,31 +194,17 @@ vary: Accept-Encoding
    - Cache headers will be applied in dev mode
    - All the same rules for restricted pages apply
    - Pages with forms or restricted access won't be cached
-   - This is useful for testing cache behavior without switching environment modes
+   - This is useful for testing cache behaviour without switching environment modes
 
 ## License
 
 BSD-3-Clause
 
-## Maintainer
-
-Ed Wilde <edwilde@example.com>
-
 ## Contributing
 
-Contributions are welcome! Please submit pull requests with tests for any new features.
+Contributions are welcome! Please submit pull requests with tests for any fixes or new features.
 
-## Development with Symlinks
+## Thanks :pray:
 
-If you're developing this module and using a symlink in a SilverStripe project:
-
-1. The module's `vendor/` directory should be excluded from SilverStripe's class manifest
-2. Either remove the vendor directory from the module when symlinking:
-   ```bash
-   cd ~/Sites/modules/silverstripe-cache-control
-   rm -rf vendor/
-   ```
-
-3. Or configure your project to exclude the symlinked vendor directory
-
-This prevents class conflicts when SilverStripe scans for classes.
+- [nswdpc/silverstripe-cache-headers](https://github.com/nswdpc/silverstripe-cache-headers) - For the underlying cache header logic and inspiration
+- [unclecheese/display-logic](https://github.com/unclecheese/silverstripe-display-logic) - For conditional field display logic

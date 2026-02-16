@@ -24,8 +24,8 @@ A Silverstripe CMS module that gives content editors control over HTTP Cache-Con
 
 - Silverstripe CMS 6.0+
 - PHP 8.3+
-- unclecheese/display-logic ^4.0
-- nswdpc/silverstripe-cache-headers (CMS 6: `dev-ss6` branch — no tagged release yet)
+- [nswdpc/silverstripe-cache-headers](https://github.com/nswdpc/silverstripe-cache-headers) (CMS 6: `dev-ss6` branch — no tagged release yet)
+- [unclecheese/display-logic](https://github.com/unclecheese/silverstripe-display-logic) ^4.0
 
 ## Installation
 
@@ -33,7 +33,8 @@ A Silverstripe CMS module that gives content editors control over HTTP Cache-Con
 composer require edwilde/silverstripe-cache-control
 ```
 
->[!NOTE] The `nswdpc/silverstripe-cache-headers` dependency currently requires its `dev-ss6` branch for CMS 6 (no tagged release yet). Your project will need `"minimum-stability": "dev"` and `"prefer-stable": true` in its `composer.json`.
+> [!NOTE]
+> The `nswdpc/silverstripe-cache-headers` dependency currently requires its `dev-ss6` branch for CMS 6 (no tagged release yet). Your project will need `"minimum-stability": "dev"` and `"prefer-stable": true` in its `composer.json`.
 
 After installation, run:
 
@@ -176,7 +177,8 @@ expires: Thu, 18 Dec 2025 05:00:00 GMT
 vary: Accept-Encoding
 ```
 
-**Note:** Headers will not appear in `dev` mode by default. You have two options:
+> [!TIP]
+> Headers will not appear in `dev` mode by default. You have two options:
 
 1. **Switch to test/live mode** (recommended for production-like testing):
    ```

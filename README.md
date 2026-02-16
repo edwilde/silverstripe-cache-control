@@ -2,6 +2,8 @@
 
 A Silverstripe CMS module that gives content editors control over HTTP Cache-Control headers at both site-wide and page-specific levels.
 
+![Cache Control UI Screenshot](docs/images/page-cache-control.jpg)
+
 ## Features
 
 - **Site-wide cache control settings** via SiteConfig

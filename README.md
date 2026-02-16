@@ -1,5 +1,7 @@
 # Silverstripe Cache Control
 
+[![CI](https://github.com/edwilde/silverstripe-cache-control/actions/workflows/ci.yml/badge.svg)](https://github.com/edwilde/silverstripe-cache-control/actions/workflows/ci.yml)
+
 A Silverstripe CMS module that gives content editors control over HTTP Cache-Control headers at both site-wide and page-specific levels.
 
 ![Cache Control UI Screenshot](docs/images/page-cache-control.jpg)

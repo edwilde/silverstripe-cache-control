@@ -144,4 +144,56 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $header = $siteConfig->getCacheControlHeader();
         $this->assertEquals('public, max-age=999', $header);
     }
+
+    public function testValidationRejectsNegativeCustomMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = 'custom';
+        $siteConfig->MaxAge = -1;
+
+        $result = $siteConfig->validate();
+        $this->assertFalse($result->isValid(), 'Validation should fail for negative max age');
+    }
+
+    public function testValidationRejectsZeroCustomMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = 'custom';
+        $siteConfig->MaxAge = 0;
+
+        $result = $siteConfig->validate();
+        $this->assertFalse($result->isValid(), 'Validation should fail for zero max age');
+    }
+
+    public function testValidationPassesForPositiveCustomMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = 'custom';
+        $siteConfig->MaxAge = 60;
+
+        $result = $siteConfig->validate();
+        $this->assertTrue($result->isValid(), 'Validation should pass for positive max age');
+    }
+
+    public function testNegativeCustomMaxAgeFallsBackToDefault()
+    {
+        // Test the defensive fallback for invalid data that may already exist in the database.
+        // We bypass write() since validation now prevents negative values from being saved.
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = 'custom';
+        $siteConfig->MaxAge = -1;
+        $siteConfig->EnableMustRevalidate = false;
+
+        $header = $siteConfig->getCacheControlHeader();
+        $this->assertEquals('public, max-age=120', $header, 'Negative custom max age should fall back to 120');
+    }
 }

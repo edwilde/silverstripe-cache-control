@@ -21,6 +21,7 @@
 namespace Edwilde\CacheControl\Extensions;
 
 use SilverStripe\Core\Extension;
+use SilverStripe\Core\Validation\ValidationResult;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\DropdownField;
 use SilverStripe\Forms\FieldList;
@@ -216,7 +217,7 @@ class CacheControlSiteConfigExtension extends Extension
             // Use preset value unless 'custom' is selected, then use MaxAge field
             $maxAge = 120; // fallback default
             if ($this->owner->MaxAgePreset === 'custom') {
-                $maxAge = (int)$this->owner->MaxAge ?: 120;
+                $maxAge = (int)$this->owner->MaxAge > 0 ? (int)$this->owner->MaxAge : 120;
             } else {
                 $maxAge = (int)$this->owner->MaxAgePreset ?: 120;
             }
@@ -265,5 +266,22 @@ class CacheControlSiteConfigExtension extends Extension
         }
 
         return !empty($varyHeaders) ? implode(', ', $varyHeaders) : null;
+    }
+
+    /**
+     * Validate cache control settings before writing
+     *
+     * @param ValidationResult $result
+     * @return void
+     */
+    public function updateValidate(ValidationResult $result): void
+    {
+        if ($this->owner->EnableCacheControl
+            && $this->owner->CacheDuration === 'maxage'
+            && $this->owner->MaxAgePreset === 'custom'
+            && (int)$this->owner->MaxAge < 1
+        ) {
+            $result->addFieldError('MaxAge', 'Custom max age must be at least 1 second.');
+        }
     }
 }

@@ -156,7 +156,7 @@ class CacheControlContentControllerExtension extends Extension
     protected function getMaxAgeValue($preset, $customValue)
     {
         if ($preset === 'custom') {
-            return (int)$customValue ?: 120;
+            return (int)$customValue > 0 ? (int)$customValue : 120;
         }
         return (int)$preset;
     }

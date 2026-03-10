@@ -182,4 +182,45 @@ class CacheControlPageExtensionTest extends SapphireTest
         // Should return null, NOT fall back to site config
         $this->assertNull($header, 'When override is enabled but cache control is disabled, should return null');
     }
+
+    public function testValidationRejectsNegativeCustomMaxAge()
+    {
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = 'custom';
+        $page->MaxAge = -1;
+
+        $result = $page->validate();
+        $this->assertFalse($result->isValid(), 'Validation should fail for negative max age');
+    }
+
+    public function testValidationSkippedWhenOverrideDisabled()
+    {
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = false;
+        $page->MaxAgePreset = 'custom';
+        $page->MaxAge = -1;
+
+        $result = $page->validate();
+        $this->assertTrue($result->isValid(), 'Validation should not run when override is disabled');
+    }
+
+    public function testNegativeCustomMaxAgeFallsBackToDefault()
+    {
+        // Test the defensive fallback for invalid data that may already exist in the database.
+        // We bypass write() since validation now prevents negative values from being saved.
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = 'custom';
+        $page->MaxAge = -1;
+        $page->EnableMustRevalidate = false;
+
+        $header = $page->getCacheControlHeader();
+        $this->assertEquals('public, max-age=120', $header, 'Negative custom max age should fall back to 120');
+    }
 }

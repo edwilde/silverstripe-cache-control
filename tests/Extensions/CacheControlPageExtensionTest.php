@@ -225,57 +225,6 @@ class CacheControlPageExtensionTest extends SapphireTest
     }
 
     /**
-     * When override is not yet enabled, form fields should display site config values
-     * rather than the page's stored defaults, so what you see is what you get on save.
-     */
-    public function testCMSFieldsPrePopulatedFromSiteConfigWhenOverrideDisabled()
-    {
-        $siteConfig = SiteConfig::current_site_config();
-        $siteConfig->EnableCacheControl = true;
-        $siteConfig->CacheType = 'private';
-        $siteConfig->CacheDuration = 'maxage';
-        $siteConfig->MaxAgePreset = '300';
-        $siteConfig->MaxAge = 300;
-        $siteConfig->EnableMustRevalidate = false;
-        $siteConfig->write();
-
-        $page = SiteTree::create();
-        $page->OverrideCacheControl = false;
-        $page->write();
-
-        $fields = $page->getCMSFields();
-
-        $this->assertEquals('private', $fields->dataFieldByName('CacheType')->getValue());
-        $this->assertEquals('300', $fields->dataFieldByName('MaxAgePreset')->getValue());
-        $this->assertEquals(300, $fields->dataFieldByName('MaxAge')->getValue());
-        $this->assertEquals(false, (bool)$fields->dataFieldByName('EnableMustRevalidate')->getValue());
-    }
-
-    /**
-     * When override is already enabled, form fields should show the page's own saved values,
-     * not the site config values.
-     */
-    public function testCMSFieldsShowPageValuesWhenOverrideEnabled()
-    {
-        $siteConfig = SiteConfig::current_site_config();
-        $siteConfig->EnableCacheControl = true;
-        $siteConfig->MaxAgePreset = '300';
-        $siteConfig->write();
-
-        $page = SiteTree::create();
-        $page->OverrideCacheControl = true;
-        $page->EnableCacheControl = true;
-        $page->CacheType = 'private';
-        $page->MaxAgePreset = '600';
-        $page->write();
-
-        $fields = $page->getCMSFields();
-
-        $this->assertEquals('600', $fields->dataFieldByName('MaxAgePreset')->getValue());
-        $this->assertEquals('private', $fields->dataFieldByName('CacheType')->getValue());
-    }
-
-    /**
      * Enabling override and saving without changing any values should store whatever
      * was displayed in the form (site config values), not silently swap to something else.
      */

@@ -9,7 +9,7 @@
  * Features:
  * - Optional override of site-wide cache settings
  * - Same controls as site config (cache type, duration, max-age, must-revalidate)
- * - Automatic pre-filling with site defaults when override is enabled
+ * - Form fields pre-populated from site config so editors see what they will inherit
  * - Clear visual indication of current cache control header
  * - Conditional field visibility using display logic
  *
@@ -107,7 +107,7 @@ class CacheControlPageExtension extends Extension
 
         $pageHeaderField = HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3);
         $pageInfoField = LiteralField::create('PageCacheControlInfo',
-            '<p class="message info">These settings will only apply to this page and override the site-wide cache settings. Values are pre-filled with current site defaults.</p>'
+            '<p class="message info">These settings will only apply to this page and override the site-wide cache settings.</p>'
         );
         $enableCacheField = CheckboxField::create('EnableCacheControl', 'Enable Cache Control for this Page')
             ->setDescription('Turn on cache control headers for this page.');
@@ -132,6 +132,20 @@ class CacheControlPageExtension extends Extension
             ->setAttribute('placeholder', '120');
         $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
             ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content (recommended).');
+
+        // Always set field values explicitly so editors see accurate values regardless of
+        // whether the fields are inside wrappers or composite fields.
+        // When override is disabled, show site config values so editors see exactly what
+        // they will inherit — preventing the confusing situation where the form shows e.g.
+        // "2 minutes" but saving silently stores "5 minutes" from the site config.
+        // When override is enabled, show the page's own saved values.
+        $source = $this->owner->OverrideCacheControl ? $this->owner : $siteConfig;
+        $enableCacheField->setValue($source->EnableCacheControl);
+        $cacheTypeField->setValue($source->CacheType ?: 'public');
+        $cacheDurationField->setValue($source->CacheDuration ?: 'maxage');
+        $maxAgePresetField->setValue($source->MaxAgePreset ?: '120');
+        $maxAgeField->setValue($source->MaxAge ?: 120);
+        $mustRevalidateField->setValue($source->EnableMustRevalidate);
 
         // Apply Display Logic - fields show/hide based on conditions
         // First level: only show when override is enabled
@@ -189,55 +203,6 @@ class CacheControlPageExtension extends Extension
             $enableCacheField,
             $pageCacheControlWrapper,
         ]);
-    }
-
-    /**
-     * Pre-fill page settings with site config values when override is first enabled
-     *
-     * This provides a better user experience by starting with the current site defaults
-     * rather than empty/default values. Only triggers when OverrideCacheControl changes
-     * from false to true, and only for fields that have not been explicitly set.
-     *
-     * Does NOT pre-fill on subsequent saves to preserve user's explicit choices,
-     * including intentionally disabling cache control for a specific page.
-     *
-     * @return void
-     */
-    public function onBeforeWrite()
-    {
-        // Pre-fill with site settings when override is first enabled
-        // Only do this if OverrideCacheControl just changed from false to true
-        if ($this->owner->isChanged('OverrideCacheControl') && $this->owner->OverrideCacheControl) {
-            $changedFields = $this->owner->getChangedFields();
-            $wasDisabled = isset($changedFields['OverrideCacheControl']) &&
-                          !$changedFields['OverrideCacheControl']['before'];
-
-            // Only pre-fill when first enabling override, not on subsequent edits
-            // AND only if the user hasn't already set values (e.g., in tests or programmatically)
-            if ($wasDisabled) {
-                $siteConfig = SiteConfig::current_site_config();
-
-                // Only set values that haven't been explicitly changed by the user
-                if (!$this->owner->isChanged('EnableCacheControl')) {
-                    $this->owner->EnableCacheControl = $siteConfig->EnableCacheControl;
-                }
-                if (!$this->owner->isChanged('CacheType')) {
-                    $this->owner->CacheType = $siteConfig->CacheType ?: 'public';
-                }
-                if (!$this->owner->isChanged('CacheDuration')) {
-                    $this->owner->CacheDuration = $siteConfig->CacheDuration ?: 'maxage';
-                }
-                if (!$this->owner->isChanged('MaxAge')) {
-                    $this->owner->MaxAge = $siteConfig->MaxAge ?: 120;
-                }
-                if (!$this->owner->isChanged('MaxAgePreset')) {
-                    $this->owner->MaxAgePreset = $siteConfig->MaxAgePreset ?: '120';
-                }
-                if (!$this->owner->isChanged('EnableMustRevalidate')) {
-                    $this->owner->EnableMustRevalidate = $siteConfig->EnableMustRevalidate;
-                }
-            }
-        }
     }
 
     /**

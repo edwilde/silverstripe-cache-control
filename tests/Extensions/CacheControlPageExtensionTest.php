@@ -223,4 +223,110 @@ class CacheControlPageExtensionTest extends SapphireTest
         $header = $page->getCacheControlHeader();
         $this->assertEquals('public, max-age=120', $header, 'Negative custom max age should fall back to 120');
     }
+
+    /**
+     * When override is not yet enabled, form fields should display site config values
+     * rather than the page's stored defaults, so what you see is what you get on save.
+     */
+    public function testCMSFieldsPrePopulatedFromSiteConfigWhenOverrideDisabled()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'private';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->MaxAge = 300;
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = false;
+        $page->write();
+
+        $fields = $page->getCMSFields();
+
+        $this->assertEquals('private', $fields->dataFieldByName('CacheType')->getValue());
+        $this->assertEquals('300', $fields->dataFieldByName('MaxAgePreset')->getValue());
+        $this->assertEquals(300, $fields->dataFieldByName('MaxAge')->getValue());
+        $this->assertEquals(false, (bool)$fields->dataFieldByName('EnableMustRevalidate')->getValue());
+    }
+
+    /**
+     * When override is already enabled, form fields should show the page's own saved values,
+     * not the site config values.
+     */
+    public function testCMSFieldsShowPageValuesWhenOverrideEnabled()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->write();
+
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'private';
+        $page->MaxAgePreset = '600';
+        $page->write();
+
+        $fields = $page->getCMSFields();
+
+        $this->assertEquals('600', $fields->dataFieldByName('MaxAgePreset')->getValue());
+        $this->assertEquals('private', $fields->dataFieldByName('CacheType')->getValue());
+    }
+
+    /**
+     * Enabling override and saving without changing any values should store whatever
+     * was displayed in the form (site config values), not silently swap to something else.
+     */
+    public function testEnablingOverrideAndSavingUnchangedStoresSiteConfigValues()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->MaxAge = 300;
+        $siteConfig->EnableMustRevalidate = true;
+        $siteConfig->write();
+
+        // Simulate the user enabling override and saving without changing the pre-populated values.
+        // The form would have shown '300' (from site config), so that's what gets submitted.
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->MaxAgePreset = '300';
+        $page->MaxAge = 300;
+        $page->EnableMustRevalidate = true;
+        $page->write();
+
+        $header = $page->getCacheControlHeader();
+        $this->assertEquals('public, max-age=300, must-revalidate', $header);
+    }
+
+    /**
+     * Enabling override and explicitly choosing a value that matches the page's DB default
+     * (e.g., 120s) should not be overwritten — the user's choice must be respected.
+     */
+    public function testEnablingOverrideWithExplicitValueMatchingDbDefaultIsPreserved()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->write();
+
+        // The user sees '300' pre-populated but explicitly changes to '120'.
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->EnableMustRevalidate = false;
+        $page->write();
+
+        $header = $page->getCacheControlHeader();
+        $this->assertEquals('public, max-age=120', $header, 'Explicit choice of 120 should be preserved');
+    }
 }

@@ -289,7 +289,29 @@ class CacheControlSiteConfigExtension extends Extension
      * @param ValidationResult $result
      * @return void
      */
+    /**
+     * Validate cache control settings before writing (CMS 5 / early CMS 6)
+     *
+     * @param ValidationResult $result
+     * @return void
+     */
+    public function validate($result): void
+    {
+        $this->doValidateMaxAge($result);
+    }
+
+    /**
+     * Validate cache control settings before writing (CMS 6)
+     *
+     * @param ValidationResult $result
+     * @return void
+     */
     public function updateValidate(ValidationResult $result): void
+    {
+        $this->doValidateMaxAge($result);
+    }
+
+    private function doValidateMaxAge($result): void
     {
         if ($this->owner->EnableCacheControl
             && $this->owner->CacheDuration === 'maxage'

@@ -8,6 +8,8 @@ use SilverStripe\SiteConfig\SiteConfig;
 
 class CacheControlSiteConfigExtensionTest extends SapphireTest
 {
+    protected $usesDatabase = true;
+
     protected static $required_extensions = [
         SiteConfig::class => [
             CacheControlSiteConfigExtension::class,

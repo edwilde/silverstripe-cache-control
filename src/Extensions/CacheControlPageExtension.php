@@ -285,6 +285,14 @@ class CacheControlPageExtension extends Extension
             return null;
         }
 
+        // Check for an ancestor that applies its cache settings to children.
+        // This is gated by enable_cache_inheritance config — findInheritedCacheSource()
+        // returns null immediately when the config is false, adding zero overhead.
+        $ancestor = $this->findInheritedCacheSource();
+        if ($ancestor) {
+            return $ancestor->getCacheControlHeader();
+        }
+
         // Fall back to site config settings
         $siteConfig = SiteConfig::current_site_config();
         if ($siteConfig->hasExtension(CacheControlSiteConfigExtension::class)) {

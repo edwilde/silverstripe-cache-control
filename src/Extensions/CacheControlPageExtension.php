@@ -249,18 +249,14 @@ class CacheControlPageExtension extends Extension
             ->andIf('EnableCacheControl')->isChecked();
 
         // Group page-specific settings in a collapsible section
-        $advancedFields = [
-            $cacheTypeWrapper,
-            $cacheDurationWrapper,
-            $maxAgePresetField,
-            $maxAgeField,
-            $mustRevalidateField,
-        ];
-        if ($applyToChildrenField) {
-            $advancedFields[] = $applyToChildrenField;
-        }
         $pageCacheControlSection = ToggleCompositeField::create('PageCacheControlSettings', 'Cache-Control Header (Advanced)',
-            $advancedFields
+            [
+                $cacheTypeWrapper,
+                $cacheDurationWrapper,
+                $maxAgePresetField,
+                $maxAgeField,
+                $mustRevalidateField,
+            ]
         )->setStartClosed(true);
 
         // Wrap page cache control section to control visibility with display logic
@@ -277,6 +273,9 @@ class CacheControlPageExtension extends Extension
             $enableCacheField,
             $pageCacheControlWrapper,
         ];
+        if ($applyToChildrenField) {
+            $cacheControlFields[] = $applyToChildrenField;
+        }
 
         $fields->addFieldsToTab('Root.CacheControl', $cacheControlFields);
     }
@@ -482,10 +481,16 @@ class CacheControlPageExtension extends Extension
             }
         }
 
+        $caveat = '';
+        if (!$this->owner->OverrideCacheControl || $this->owner->EnableCacheControl) {
+            $caveat = '<br><small>Note: Silverstripe may override this at runtime for pages with forms, active sessions, or restricted access.</small>';
+        }
+
         return sprintf(
-            '<code>%s</code><br><small>%s</small>',
+            '<code>%s</code><br><small>%s</small>%s',
             htmlspecialchars($header),
-            $source
+            $source,
+            $caveat
         );
     }
 }

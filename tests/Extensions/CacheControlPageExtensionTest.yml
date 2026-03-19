@@ -6,3 +6,39 @@ SilverStripe\CMS\Model\SiteTree:
     OverrideCacheControl: true
     EnableCacheControl: true
     CacheType: 'private'
+  archive:
+    Title: 'Archive'
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'public'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '86400'
+    EnableMustRevalidate: true
+    ApplyCacheToChildren: true
+  archive_child:
+    Title: 'Archive Child'
+    Parent: =>SilverStripe\CMS\Model\SiteTree.archive
+  archive_grandchild:
+    Title: 'Archive Grandchild'
+    Parent: =>SilverStripe\CMS\Model\SiteTree.archive_child
+  archive_child_with_override:
+    Title: 'Archive Child With Override'
+    Parent: =>SilverStripe\CMS\Model\SiteTree.archive
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'private'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '300'
+    EnableMustRevalidate: false
+  archive_override_no_apply:
+    Title: 'Archive Override No Apply'
+    Parent: =>SilverStripe\CMS\Model\SiteTree.archive
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'private'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '600'
+    ApplyCacheToChildren: false
+  archive_override_no_apply_child:
+    Title: 'Child of Override No Apply'
+    Parent: =>SilverStripe\CMS\Model\SiteTree.archive_override_no_apply

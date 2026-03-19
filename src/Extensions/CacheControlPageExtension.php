@@ -29,6 +29,7 @@ use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
 use SilverStripe\Forms\ToggleCompositeField;
+use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\SiteConfig\SiteConfig;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 
@@ -290,6 +291,42 @@ class CacheControlPageExtension extends Extension
             return $siteConfig->getCacheControlHeader();
         }
 
+        return null;
+    }
+
+    /**
+     * Find the nearest ancestor that applies its cache settings to children
+     *
+     * Walks up the page tree looking for the closest ancestor with both
+     * OverrideCacheControl and ApplyCacheToChildren enabled. Ancestors that
+     * override for themselves only (without ApplyCacheToChildren) are skipped,
+     * allowing more distant ancestors to still apply.
+     *
+     * Returns null immediately if enable_cache_inheritance config is false,
+     * avoiding any database queries when the feature is not enabled.
+     *
+     * Performance: O(d) where d is the tree depth (typically 3-5 levels).
+     * Each level requires one Parent() lookup. For a page at depth 3 under
+     * an /archive parent with ApplyCacheToChildren, this is just 1 query.
+     *
+     * @return SiteTree|null The ancestor page to inherit from, or null if
+     *                       none found or feature is disabled
+     */
+    public function findInheritedCacheSource()
+    {
+        // Early return when cache inheritance is disabled via config.
+        // This ensures zero performance overhead for sites that don't use the feature.
+        if (!$this->owner->config()->get('enable_cache_inheritance')) {
+            return null;
+        }
+
+        $parent = $this->owner->Parent();
+        while ($parent && $parent->exists()) {
+            if ($parent->OverrideCacheControl && $parent->ApplyCacheToChildren) {
+                return $parent;
+            }
+            $parent = $parent->Parent();
+        }
         return null;
     }
 

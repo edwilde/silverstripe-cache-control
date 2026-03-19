@@ -254,6 +254,76 @@ class CacheControlPageExtensionTest extends SapphireTest
         $this->assertEquals('public, max-age=300, must-revalidate', $header);
     }
 
+    public function testFindInheritedCacheSourceReturnsParentWithApplyToChildren()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+
+        $source = $child->findInheritedCacheSource();
+        $this->assertNotNull($source, 'Should find an ancestor with ApplyCacheToChildren');
+        $this->assertEquals($archive->ID, $source->ID, 'Should return the archive page');
+    }
+
+    public function testFindInheritedCacheSourceReturnsNullWhenConfigDisabled()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', false);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $source = $child->findInheritedCacheSource();
+        $this->assertNull($source, 'Should return null when enable_cache_inheritance is false');
+    }
+
+    public function testFindInheritedCacheSourceReturnsNullForTopLevelPage()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+
+        $source = $page->findInheritedCacheSource();
+        $this->assertNull($source, 'Top-level page with no ancestors should return null');
+    }
+
+    public function testFindInheritedCacheSourceSkipsAncestorWithoutApplyToChildren()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        // archive_override_no_apply has override=true but apply=false
+        // Its child should skip it and find archive (grandparent) instead
+        $child = $this->objFromFixture(SiteTree::class, 'archive_override_no_apply_child');
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+
+        $source = $child->findInheritedCacheSource();
+        $this->assertNotNull($source, 'Should find archive as grandparent source');
+        $this->assertEquals($archive->ID, $source->ID, 'Should skip parent without ApplyCacheToChildren and find grandparent');
+    }
+
+    public function testFindInheritedCacheSourceReturnsNullWhenNoAncestorApplies()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        // page2 has override=true but no ApplyCacheToChildren (defaults to false)
+        // and is top-level, so no ancestors
+        $page = $this->objFromFixture(SiteTree::class, 'page2');
+
+        $source = $page->findInheritedCacheSource();
+        $this->assertNull($source, 'Should return null when no ancestor has ApplyCacheToChildren');
+    }
+
+    public function testFindInheritedCacheSourceWorksForGrandchildren()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $grandchild = $this->objFromFixture(SiteTree::class, 'archive_grandchild');
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+
+        $source = $grandchild->findInheritedCacheSource();
+        $this->assertNotNull($source);
+        $this->assertEquals($archive->ID, $source->ID, 'Grandchild should inherit from archive');
+    }
+
     public function testApplyCacheToChildrenFieldExistsWhenConfigEnabled()
     {
         // Enable cache inheritance via config

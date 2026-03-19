@@ -41,6 +41,24 @@ use UncleCheese\DisplayLogic\Forms\Wrapper;
 class CacheControlPageExtension extends Extension
 {
     /**
+     * Whether to enable cache inheritance from parent pages.
+     *
+     * When enabled, pages without their own cache override can inherit cache settings
+     * from an ancestor page that has ApplyCacheToChildren enabled. This adds O(d) database
+     * queries per uncached request (where d is tree depth, typically 3-5) to walk up the
+     * page hierarchy.
+     *
+     * Disabled by default for performance. Enable via YAML config:
+     *
+     *     SilverStripe\CMS\Model\SiteTree:
+     *       enable_cache_inheritance: true
+     *
+     * @config
+     * @var bool
+     */
+    private static bool $enable_cache_inheritance = false;
+
+    /**
      * Database fields for page-level cache control
      *
      * @var array
@@ -53,6 +71,7 @@ class CacheControlPageExtension extends Extension
         'MaxAge' => 'Int',
         'MaxAgePreset' => 'Enum("120,300,600,3600,86400,custom","120")',
         'EnableMustRevalidate' => 'Boolean',
+        'ApplyCacheToChildren' => 'Boolean',
     ];
 
     /**
@@ -70,6 +89,7 @@ class CacheControlPageExtension extends Extension
         'MaxAge' => 120,
         'MaxAgePreset' => '120',
         'EnableMustRevalidate' => true,
+        'ApplyCacheToChildren' => false,
     ];
 
     /**

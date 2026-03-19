@@ -136,8 +136,20 @@ class CacheControlPageExtension extends Extension
             '</div>'
         );
 
-        $overrideField = CheckboxField::create('OverrideCacheControl', 'Override Site Cache Settings')
-            ->setDescription('Enable this to set custom cache control for this specific page, overriding site-wide settings.');
+        // Dynamic label: reflect whether this page inherits from a parent or from site config
+        $ancestor = $this->findInheritedCacheSource();
+        if ($ancestor) {
+            $overrideLabel = 'Override inherited cache settings';
+            $overrideDescription = sprintf(
+                'This page currently inherits cache settings from "%s". Enable this to set custom cache control for this specific page.',
+                $ancestor->Title
+            );
+        } else {
+            $overrideLabel = 'Override site cache settings';
+            $overrideDescription = 'Enable this to set custom cache control for this specific page, overriding site-wide settings.';
+        }
+        $overrideField = CheckboxField::create('OverrideCacheControl', $overrideLabel)
+            ->setDescription($overrideDescription);
 
         // Cache inheritance: "Apply to child pages" checkbox.
         // Only available when enable_cache_inheritance is true in YAML config.
@@ -187,10 +199,10 @@ class CacheControlPageExtension extends Extension
         //   1. Page's own override values (when OverrideCacheControl is enabled)
         //   2. Nearest ancestor with ApplyCacheToChildren (when enable_cache_inheritance is on)
         //   3. SiteConfig defaults
+        // Reuse $ancestor from override label lookup above
         if ($this->owner->OverrideCacheControl) {
             $source = $this->owner;
         } else {
-            $ancestor = $this->findInheritedCacheSource();
             $source = $ancestor ?: $siteConfig;
         }
         $enableCacheField->setValue($source->EnableCacheControl);
@@ -237,14 +249,18 @@ class CacheControlPageExtension extends Extension
             ->andIf('EnableCacheControl')->isChecked();
 
         // Group page-specific settings in a collapsible section
+        $advancedFields = [
+            $cacheTypeWrapper,
+            $cacheDurationWrapper,
+            $maxAgePresetField,
+            $maxAgeField,
+            $mustRevalidateField,
+        ];
+        if ($applyToChildrenField) {
+            $advancedFields[] = $applyToChildrenField;
+        }
         $pageCacheControlSection = ToggleCompositeField::create('PageCacheControlSettings', 'Cache-Control Header (Advanced)',
-            [
-                $cacheTypeWrapper,
-                $cacheDurationWrapper,
-                $maxAgePresetField,
-                $maxAgeField,
-                $mustRevalidateField,
-            ]
+            $advancedFields
         )->setStartClosed(true);
 
         // Wrap page cache control section to control visibility with display logic
@@ -259,11 +275,8 @@ class CacheControlPageExtension extends Extension
             $pageHeaderField,
             $pageInfoField,
             $enableCacheField,
+            $pageCacheControlWrapper,
         ];
-        if ($applyToChildrenField) {
-            $cacheControlFields[] = $applyToChildrenField;
-        }
-        $cacheControlFields[] = $pageCacheControlWrapper;
 
         $fields->addFieldsToTab('Root.CacheControl', $cacheControlFields);
     }

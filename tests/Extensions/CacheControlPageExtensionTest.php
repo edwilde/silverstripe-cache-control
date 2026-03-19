@@ -423,6 +423,59 @@ class CacheControlPageExtensionTest extends SapphireTest
             'Should fall back to SiteConfig when no ancestor applies');
     }
 
+    public function testEffectiveDescriptionShowsInheritedFromParent()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $description = $child->getEffectiveCacheControlDescription();
+        $this->assertStringContainsString('public, max-age=86400, must-revalidate', $description);
+        $this->assertStringContainsString('Archive', $description,
+            'Description should name the parent page the settings are inherited from');
+        $this->assertStringContainsString('inherited', strtolower($description));
+    }
+
+    public function testEffectiveDescriptionShowsSiteWideWhenNoAncestorApplies()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = false;
+        $page->write();
+
+        $description = $page->getEffectiveCacheControlDescription();
+        $this->assertStringContainsString('site-wide', strtolower($description));
+    }
+
+    public function testEffectiveDescriptionShowsSiteWideWhenConfigDisabled()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', false);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        // archive_child has a parent with ApplyCacheToChildren, but config is disabled
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $description = $child->getEffectiveCacheControlDescription();
+        $this->assertStringContainsString('site-wide', strtolower($description),
+            'Should show site-wide when config disabled, even with parent ApplyCacheToChildren');
+    }
+
     /**
      * Enabling override and explicitly choosing a value that matches the page's DB default
      * (e.g., 120s) should not be overwritten — the user's choice must be respected.

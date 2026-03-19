@@ -181,11 +181,18 @@ class CacheControlPageExtension extends Extension
 
         // Always set field values explicitly so editors see accurate values regardless of
         // whether the fields are inside wrappers or composite fields.
-        // When override is disabled, show site config values so editors see exactly what
-        // they will inherit — preventing the confusing situation where the form shows e.g.
-        // "2 minutes" but saving silently stores "5 minutes" from the site config.
-        // When override is enabled, show the page's own saved values.
-        $source = $this->owner->OverrideCacheControl ? $this->owner : $siteConfig;
+        // Determine the source of effective cache settings for pre-populating form fields.
+        // When override is disabled, fields display the values the page will actually inherit,
+        // so editors see accurate values before enabling override. Priority order:
+        //   1. Page's own override values (when OverrideCacheControl is enabled)
+        //   2. Nearest ancestor with ApplyCacheToChildren (when enable_cache_inheritance is on)
+        //   3. SiteConfig defaults
+        if ($this->owner->OverrideCacheControl) {
+            $source = $this->owner;
+        } else {
+            $ancestor = $this->findInheritedCacheSource();
+            $source = $ancestor ?: $siteConfig;
+        }
         $enableCacheField->setValue($source->EnableCacheControl);
         $cacheTypeField->setValue($source->CacheType ?: 'public');
         $cacheDurationField->setValue($source->CacheDuration ?: 'maxage');
@@ -429,8 +436,10 @@ class CacheControlPageExtension extends Extension
     /**
      * Get a human-readable description of the effective cache control header
      *
-     * Shows what header is currently active and whether it comes from page-specific
-     * settings or site-wide settings. Used in the CMS to provide clear feedback.
+     * Shows what header is currently active and where it comes from:
+     * - "page-specific setting" when the page has its own override
+     * - "inherited from [Page Title]" when inheriting from an ancestor (requires enable_cache_inheritance)
+     * - "inherited from site-wide settings" when using SiteConfig defaults
      *
      * @return string HTML-formatted description of the current cache control
      */
@@ -446,9 +455,19 @@ class CacheControlPageExtension extends Extension
             return $reason . ' Browsers will use their default caching behavior.';
         }
 
-        $source = $this->owner->OverrideCacheControl
-            ? 'This is a <strong>page-specific setting</strong>.'
-            : 'This is <strong>inherited from site-wide settings</strong>.';
+        if ($this->owner->OverrideCacheControl) {
+            $source = 'This is a <strong>page-specific setting</strong>.';
+        } else {
+            $ancestor = $this->findInheritedCacheSource();
+            if ($ancestor) {
+                $source = sprintf(
+                    'This is <strong>inherited from &ldquo;%s&rdquo;</strong>.',
+                    htmlspecialchars($ancestor->Title)
+                );
+            } else {
+                $source = 'This is <strong>inherited from site-wide settings</strong>.';
+            }
+        }
 
         return sprintf(
             '<code>%s</code><br><small>%s</small>',

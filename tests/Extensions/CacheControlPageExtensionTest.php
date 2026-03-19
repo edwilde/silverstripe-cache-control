@@ -500,4 +500,95 @@ class CacheControlPageExtensionTest extends SapphireTest
         $header = $page->getCacheControlHeader();
         $this->assertEquals('public, max-age=120', $header, 'Explicit choice of 120 should be preserved');
     }
+
+    /**
+     * Test that a parent with ApplyCacheToChildren but EnableCacheControl=false
+     * results in children inheriting the "cache disabled" state (returns null).
+     */
+    public function testInheritedCacheDisabledFromParent()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+        $archive->EnableCacheControl = false;
+        $archive->ApplyCacheToChildren = true;
+        $archive->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $header = $child->getCacheControlHeader();
+        $this->assertNull($header, 'Child should inherit null (disabled) from parent');
+    }
+
+    /**
+     * Test that the nearest ancestor with ApplyCacheToChildren wins over a
+     * more distant one.
+     */
+    public function testNearestAncestorWithApplyToChildrenWins()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        // Make archive_override_no_apply also apply to children with a different max-age
+        $middlePage = $this->objFromFixture(SiteTree::class, 'archive_override_no_apply');
+        $middlePage->ApplyCacheToChildren = true;
+        $middlePage->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_override_no_apply_child');
+
+        $source = $child->findInheritedCacheSource();
+        $this->assertEquals($middlePage->ID, $source->ID,
+            'Nearest ancestor with ApplyCacheToChildren should win');
+
+        $header = $child->getCacheControlHeader();
+        $this->assertEquals('private, max-age=600, must-revalidate', $header,
+            'Should use nearest ancestor settings (600), not grandparent (86400)');
+    }
+
+    /**
+     * Test that a page with OverrideCacheControl=true never walks up the tree,
+     * even if it has a parent with ApplyCacheToChildren.
+     */
+    public function testPageWithOverrideNeverInherits()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child_with_override');
+
+        // Verify it has a parent with ApplyCacheToChildren
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+        $this->assertTrue((bool)$archive->ApplyCacheToChildren);
+
+        // But the child has its own override, so it should use its own settings
+        $header = $child->getCacheControlHeader();
+        $this->assertEquals('private, max-age=300', $header);
+        $this->assertNotEquals('public, max-age=86400, must-revalidate', $header,
+            'Child with override should not inherit parent settings');
+    }
+
+    /**
+     * Test that enabling override on a child and saving preserves the inherited
+     * values that were shown in the form (from ancestor, not site config).
+     */
+    public function testEnablingOverridePrePopulatesFromAncestor()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        // archive has public, 86400, must-revalidate, ApplyCacheToChildren=true
+        // archive_child has no override, so CMS shows archive's values
+
+        // Simulate the user enabling override on archive_child — the form would
+        // show archive's values (86400), so that's what gets submitted
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+        $child->OverrideCacheControl = true;
+        $child->EnableCacheControl = true;
+        $child->CacheType = 'public';
+        $child->CacheDuration = 'maxage';
+        $child->MaxAgePreset = '86400';
+        $child->EnableMustRevalidate = true;
+        $child->write();
+
+        $header = $child->getCacheControlHeader();
+        $this->assertEquals('public, max-age=86400, must-revalidate', $header,
+            'Values pre-populated from ancestor should be preserved on save');
+    }
 }

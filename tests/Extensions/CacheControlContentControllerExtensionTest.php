@@ -193,4 +193,103 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             'disableCache() should override site-level publicCache() set by the extension'
         );
     }
+
+    /**
+     * Integration test: child page without override should inherit cache settings
+     * from parent with ApplyCacheToChildren enabled (when config allows).
+     */
+    public function testApplyInheritedSettingsFromParent()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $controller = ContentController::create($child);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+
+        $this->assertEquals(
+            HTTPCacheControlMiddleware::STATE_PUBLIC,
+            $middleware->getState(),
+            'Child should inherit public cache from parent with ApplyCacheToChildren'
+        );
+    }
+
+    /**
+     * Integration test: child page with own override should use its own settings,
+     * not inherit from parent with ApplyCacheToChildren.
+     */
+    public function testChildOverrideIgnoresParentApplyCacheToChildren()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child_with_override');
+
+        $controller = ContentController::create($child);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+
+        $this->assertEquals(
+            HTTPCacheControlMiddleware::STATE_PRIVATE,
+            $middleware->getState(),
+            'Child with own override should use private, not inherit public from parent'
+        );
+    }
+
+    /**
+     * Integration test: inherited cache settings should still allow Form's
+     * disableCache() to take precedence (non-forced middleware calls).
+     */
+    public function testApplyInheritedSettingsUsesNonForcedCalls()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $controller = ContentController::create($child);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+
+        // Simulate Form::forTemplate() — this must win
+        $middleware->disableCache();
+
+        $this->assertEquals(
+            HTTPCacheControlMiddleware::STATE_DISABLED,
+            $middleware->getState(),
+            'disableCache() should override inherited publicCache() set by the extension'
+        );
+    }
+
+    /**
+     * Integration test: when config is disabled, child should fall back to site config
+     * even when parent has ApplyCacheToChildren.
+     */
+    public function testNoInheritanceWhenConfigDisabled()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', false);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'private';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $controller = ContentController::create($child);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+
+        $this->assertEquals(
+            HTTPCacheControlMiddleware::STATE_PRIVATE,
+            $middleware->getState(),
+            'Should use site config (private) not parent (public) when config disabled'
+        );
+    }
 }

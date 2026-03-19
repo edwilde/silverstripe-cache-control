@@ -29,6 +29,7 @@ use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
 use SilverStripe\Forms\ToggleCompositeField;
+use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\SiteConfig\SiteConfig;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 
@@ -40,6 +41,24 @@ use UncleCheese\DisplayLogic\Forms\Wrapper;
  */
 class CacheControlPageExtension extends Extension
 {
+    /**
+     * Whether to enable cache inheritance from parent pages.
+     *
+     * When enabled, pages without their own cache override can inherit cache settings
+     * from an ancestor page that has ApplyCacheToChildren enabled. This adds O(d) database
+     * queries per uncached request (where d is tree depth, typically 3-5) to walk up the
+     * page hierarchy.
+     *
+     * Disabled by default for performance. Enable via YAML config:
+     *
+     *     SilverStripe\CMS\Model\SiteTree:
+     *       enable_cache_inheritance: true
+     *
+     * @config
+     * @var bool
+     */
+    private static bool $enable_cache_inheritance = false;
+
     /**
      * Database fields for page-level cache control
      *
@@ -53,6 +72,7 @@ class CacheControlPageExtension extends Extension
         'MaxAge' => 'Int',
         'MaxAgePreset' => 'Enum("120,300,600,3600,86400,custom","120")',
         'EnableMustRevalidate' => 'Boolean',
+        'ApplyCacheToChildren' => 'Boolean',
     ];
 
     /**
@@ -70,6 +90,7 @@ class CacheControlPageExtension extends Extension
         'MaxAge' => 120,
         'MaxAgePreset' => '120',
         'EnableMustRevalidate' => true,
+        'ApplyCacheToChildren' => false,
     ];
 
     /**
@@ -102,8 +123,32 @@ class CacheControlPageExtension extends Extension
             '</div>'
         );
 
-        $overrideField = CheckboxField::create('OverrideCacheControl', 'Override Site Cache Settings')
-            ->setDescription('Enable this to set custom cache control for this specific page, overriding site-wide settings.');
+        // Dynamic label: reflect whether this page inherits from a parent or from site config
+        $ancestor = $this->findInheritedCacheSource();
+        if ($ancestor) {
+            $overrideLabel = 'Override inherited cache settings';
+            $overrideDescription = sprintf(
+                'This page currently inherits cache settings from "%s". Enable this to set custom cache control for this specific page.',
+                $ancestor->Title
+            );
+        } else {
+            $overrideLabel = 'Override site cache settings';
+            $overrideDescription = 'Enable this to set custom cache control for this specific page, overriding site-wide settings.';
+        }
+        $overrideField = CheckboxField::create('OverrideCacheControl', $overrideLabel)
+            ->setDescription($overrideDescription);
+
+        // Cache inheritance: "Apply to child pages" checkbox.
+        // Only available when enable_cache_inheritance is true in YAML config.
+        // This avoids exposing the feature (and its runtime overhead) unless a developer opts in.
+        $applyToChildrenField = null;
+        if ($this->owner->config()->get('enable_cache_inheritance')) {
+            $applyToChildrenField = CheckboxField::create('ApplyCacheToChildren', 'Apply to child pages')
+                ->setDescription(
+                    'These cache settings will apply to all descendant pages unless they have their own cache control override. '
+                    . 'Child pages will show these settings as inherited.'
+                );
+        }
 
         $pageHeaderField = HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3);
         $pageInfoField = LiteralField::create('PageCacheControlInfo',
@@ -135,11 +180,18 @@ class CacheControlPageExtension extends Extension
 
         // Always set field values explicitly so editors see accurate values regardless of
         // whether the fields are inside wrappers or composite fields.
-        // When override is disabled, show site config values so editors see exactly what
-        // they will inherit — preventing the confusing situation where the form shows e.g.
-        // "2 minutes" but saving silently stores "5 minutes" from the site config.
-        // When override is enabled, show the page's own saved values.
-        $source = $this->owner->OverrideCacheControl ? $this->owner : $siteConfig;
+        // Determine the source of effective cache settings for pre-populating form fields.
+        // When override is disabled, fields display the values the page will actually inherit,
+        // so editors see accurate values before enabling override. Priority order:
+        //   1. Page's own override values (when OverrideCacheControl is enabled)
+        //   2. Nearest ancestor with ApplyCacheToChildren (when enable_cache_inheritance is on)
+        //   3. SiteConfig defaults
+        // Reuse $ancestor from override label lookup above
+        if ($this->owner->OverrideCacheControl) {
+            $source = $this->owner;
+        } else {
+            $source = $ancestor ?: $siteConfig;
+        }
         $enableCacheField->setValue($source->EnableCacheControl);
         $cacheTypeField->setValue($source->CacheType ?: 'public');
         $cacheDurationField->setValue($source->CacheDuration ?: 'maxage');
@@ -152,6 +204,11 @@ class CacheControlPageExtension extends Extension
         $pageHeaderField->displayIf('OverrideCacheControl')->isChecked();
         $pageInfoField->displayIf('OverrideCacheControl')->isChecked();
         $enableCacheField->displayIf('OverrideCacheControl')->isChecked();
+
+        if ($applyToChildrenField) {
+            $applyToChildrenField->displayIf('OverrideCacheControl')->isChecked()
+                ->andIf('EnableCacheControl')->isChecked();
+        }
 
         // Second level: show when override AND cache control are enabled
         // Note: OptionsetFields must be wrapped for display logic to work properly
@@ -194,7 +251,7 @@ class CacheControlPageExtension extends Extension
         $pageCacheControlWrapper->displayIf('OverrideCacheControl')->isChecked()
             ->andIf('EnableCacheControl')->isChecked()->end();
 
-        $fields->addFieldsToTab('Root.CacheControl', [
+        $cacheControlFields = [
             $headerField,
             $currentCacheControlField,
             $overrideField,
@@ -202,7 +259,12 @@ class CacheControlPageExtension extends Extension
             $pageInfoField,
             $enableCacheField,
             $pageCacheControlWrapper,
-        ]);
+        ];
+        if ($applyToChildrenField) {
+            $cacheControlFields[] = $applyToChildrenField;
+        }
+
+        $fields->addFieldsToTab('Root.CacheControl', $cacheControlFields);
     }
 
     /**
@@ -229,12 +291,56 @@ class CacheControlPageExtension extends Extension
             return null;
         }
 
+        // Check for an ancestor that applies its cache settings to children.
+        // This is gated by enable_cache_inheritance config — findInheritedCacheSource()
+        // returns null immediately when the config is false, adding zero overhead.
+        $ancestor = $this->findInheritedCacheSource();
+        if ($ancestor) {
+            return $ancestor->getCacheControlHeader();
+        }
+
         // Fall back to site config settings
         $siteConfig = SiteConfig::current_site_config();
         if ($siteConfig->hasExtension(CacheControlSiteConfigExtension::class)) {
             return $siteConfig->getCacheControlHeader();
         }
 
+        return null;
+    }
+
+    /**
+     * Find the nearest ancestor that applies its cache settings to children
+     *
+     * Walks up the page tree looking for the closest ancestor with both
+     * OverrideCacheControl and ApplyCacheToChildren enabled. Ancestors that
+     * override for themselves only (without ApplyCacheToChildren) are skipped,
+     * allowing more distant ancestors to still apply.
+     *
+     * Returns null immediately if enable_cache_inheritance config is false,
+     * avoiding any database queries when the feature is not enabled.
+     *
+     * Performance: O(d) where d is the tree depth (typically 3-5 levels).
+     * Each level requires one Parent() lookup. For a page at depth 3 under
+     * an /archive parent with ApplyCacheToChildren, this is just 1 query.
+     *
+     * @return SiteTree|null The ancestor page to inherit from, or null if
+     *                       none found or feature is disabled
+     */
+    public function findInheritedCacheSource()
+    {
+        // Early return when cache inheritance is disabled via config.
+        // This ensures zero performance overhead for sites that don't use the feature.
+        if (!$this->owner->config()->get('enable_cache_inheritance')) {
+            return null;
+        }
+
+        $parent = $this->owner->Parent();
+        while ($parent && $parent->exists()) {
+            if ($parent->OverrideCacheControl && $parent->ApplyCacheToChildren) {
+                return $parent;
+            }
+            $parent = $parent->Parent();
+        }
         return null;
     }
 
@@ -329,8 +435,10 @@ class CacheControlPageExtension extends Extension
     /**
      * Get a human-readable description of the effective cache control header
      *
-     * Shows what header is currently active and whether it comes from page-specific
-     * settings or site-wide settings. Used in the CMS to provide clear feedback.
+     * Shows what header is currently active and where it comes from:
+     * - "page-specific setting" when the page has its own override
+     * - "inherited from [Page Title]" when inheriting from an ancestor (requires enable_cache_inheritance)
+     * - "inherited from site-wide settings" when using SiteConfig defaults
      *
      * @return string HTML-formatted description of the current cache control
      */
@@ -346,14 +454,30 @@ class CacheControlPageExtension extends Extension
             return $reason . ' Browsers will use their default caching behavior.';
         }
 
-        $source = $this->owner->OverrideCacheControl
-            ? 'This is a <strong>page-specific setting</strong>.'
-            : 'This is <strong>inherited from site-wide settings</strong>.';
+        if ($this->owner->OverrideCacheControl) {
+            $source = 'This is a <strong>page-specific setting</strong>.';
+        } else {
+            $ancestor = $this->findInheritedCacheSource();
+            if ($ancestor) {
+                $source = sprintf(
+                    'This is <strong>inherited from &ldquo;%s&rdquo;</strong>.',
+                    htmlspecialchars($ancestor->Title)
+                );
+            } else {
+                $source = 'This is <strong>inherited from site-wide settings</strong>.';
+            }
+        }
+
+        $caveat = '';
+        if (!$this->owner->OverrideCacheControl || $this->owner->EnableCacheControl) {
+            $caveat = '<br><small>Note: Silverstripe may override this at runtime for pages with forms, active sessions, or restricted access.</small>';
+        }
 
         return sprintf(
-            '<code>%s</code><br><small>%s</small>',
+            '<code>%s</code><br><small>%s</small>%s',
             htmlspecialchars($header),
-            $source
+            $source,
+            $caveat
         );
     }
 }

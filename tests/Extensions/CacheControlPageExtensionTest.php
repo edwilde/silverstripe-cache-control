@@ -254,6 +254,228 @@ class CacheControlPageExtensionTest extends SapphireTest
         $this->assertEquals('public, max-age=300, must-revalidate', $header);
     }
 
+    public function testFindInheritedCacheSourceReturnsParentWithApplyToChildren()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+
+        $source = $child->findInheritedCacheSource();
+        $this->assertNotNull($source, 'Should find an ancestor with ApplyCacheToChildren');
+        $this->assertEquals($archive->ID, $source->ID, 'Should return the archive page');
+    }
+
+    public function testFindInheritedCacheSourceReturnsNullWhenConfigDisabled()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', false);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $source = $child->findInheritedCacheSource();
+        $this->assertNull($source, 'Should return null when enable_cache_inheritance is false');
+    }
+
+    public function testFindInheritedCacheSourceReturnsNullForTopLevelPage()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+
+        $source = $page->findInheritedCacheSource();
+        $this->assertNull($source, 'Top-level page with no ancestors should return null');
+    }
+
+    public function testFindInheritedCacheSourceSkipsAncestorWithoutApplyToChildren()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        // archive_override_no_apply has override=true but apply=false
+        // Its child should skip it and find archive (grandparent) instead
+        $child = $this->objFromFixture(SiteTree::class, 'archive_override_no_apply_child');
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+
+        $source = $child->findInheritedCacheSource();
+        $this->assertNotNull($source, 'Should find archive as grandparent source');
+        $this->assertEquals($archive->ID, $source->ID, 'Should skip parent without ApplyCacheToChildren and find grandparent');
+    }
+
+    public function testFindInheritedCacheSourceReturnsNullWhenNoAncestorApplies()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        // page2 has override=true but no ApplyCacheToChildren (defaults to false)
+        // and is top-level, so no ancestors
+        $page = $this->objFromFixture(SiteTree::class, 'page2');
+
+        $source = $page->findInheritedCacheSource();
+        $this->assertNull($source, 'Should return null when no ancestor has ApplyCacheToChildren');
+    }
+
+    public function testFindInheritedCacheSourceWorksForGrandchildren()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $grandchild = $this->objFromFixture(SiteTree::class, 'archive_grandchild');
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+
+        $source = $grandchild->findInheritedCacheSource();
+        $this->assertNotNull($source);
+        $this->assertEquals($archive->ID, $source->ID, 'Grandchild should inherit from archive');
+    }
+
+    public function testApplyCacheToChildrenFieldExistsWhenConfigEnabled()
+    {
+        // Enable cache inheritance via config
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = true;
+        $fields = $page->getCMSFields();
+
+        $field = $fields->dataFieldByName('ApplyCacheToChildren');
+        $this->assertNotNull($field, 'ApplyCacheToChildren field should exist when config enabled');
+    }
+
+    public function testApplyCacheToChildrenFieldHiddenWhenConfigDisabled()
+    {
+        // Ensure cache inheritance is disabled (default)
+        SiteTree::config()->set('enable_cache_inheritance', false);
+
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = true;
+        $fields = $page->getCMSFields();
+
+        $field = $fields->dataFieldByName('ApplyCacheToChildren');
+        $this->assertNull($field, 'ApplyCacheToChildren field should not exist when config disabled');
+    }
+
+    public function testGetCacheControlHeaderInheritsFromParent()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $header = $child->getCacheControlHeader();
+        $this->assertEquals('public, max-age=86400, must-revalidate', $header,
+            'Child without override should inherit from parent with ApplyCacheToChildren');
+    }
+
+    public function testGetCacheControlHeaderChildOverrideTakesPrecedence()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child_with_override');
+
+        $header = $child->getCacheControlHeader();
+        $this->assertEquals('private, max-age=300', $header,
+            'Child with own override should use its own settings, not parent');
+    }
+
+    public function testGetCacheControlHeaderGrandchildInheritsFromGrandparent()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $grandchild = $this->objFromFixture(SiteTree::class, 'archive_grandchild');
+
+        $header = $grandchild->getCacheControlHeader();
+        $this->assertEquals('public, max-age=86400, must-revalidate', $header,
+            'Grandchild should inherit from grandparent via ancestor walk');
+    }
+
+    public function testGetCacheControlHeaderNoInheritanceWhenConfigDisabled()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', false);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        // archive_child has a parent with ApplyCacheToChildren, but config is disabled
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $header = $child->getCacheControlHeader();
+        $this->assertEquals('public, max-age=120', $header,
+            'Should fall back to SiteConfig when config disabled, ignoring parent ApplyCacheToChildren');
+    }
+
+    public function testGetCacheControlHeaderFallsBackToSiteConfigWhenNoAncestorApplies()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        // page1 is top-level, no ancestor with ApplyCacheToChildren
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+
+        $header = $page->getCacheControlHeader();
+        $this->assertEquals('public, max-age=120', $header,
+            'Should fall back to SiteConfig when no ancestor applies');
+    }
+
+    public function testEffectiveDescriptionShowsInheritedFromParent()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $description = $child->getEffectiveCacheControlDescription();
+        $this->assertStringContainsString('public, max-age=86400, must-revalidate', $description);
+        $this->assertStringContainsString('Archive', $description,
+            'Description should name the parent page the settings are inherited from');
+        $this->assertStringContainsString('inherited', strtolower($description));
+    }
+
+    public function testEffectiveDescriptionShowsSiteWideWhenNoAncestorApplies()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = false;
+        $page->write();
+
+        $description = $page->getEffectiveCacheControlDescription();
+        $this->assertStringContainsString('site-wide', strtolower($description));
+    }
+
+    public function testEffectiveDescriptionShowsSiteWideWhenConfigDisabled()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', false);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        // archive_child has a parent with ApplyCacheToChildren, but config is disabled
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $description = $child->getEffectiveCacheControlDescription();
+        $this->assertStringContainsString('site-wide', strtolower($description),
+            'Should show site-wide when config disabled, even with parent ApplyCacheToChildren');
+    }
+
     /**
      * Enabling override and explicitly choosing a value that matches the page's DB default
      * (e.g., 120s) should not be overwritten — the user's choice must be respected.
@@ -277,5 +499,96 @@ class CacheControlPageExtensionTest extends SapphireTest
 
         $header = $page->getCacheControlHeader();
         $this->assertEquals('public, max-age=120', $header, 'Explicit choice of 120 should be preserved');
+    }
+
+    /**
+     * Test that a parent with ApplyCacheToChildren but EnableCacheControl=false
+     * results in children inheriting the "cache disabled" state (returns null).
+     */
+    public function testInheritedCacheDisabledFromParent()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+        $archive->EnableCacheControl = false;
+        $archive->ApplyCacheToChildren = true;
+        $archive->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $header = $child->getCacheControlHeader();
+        $this->assertNull($header, 'Child should inherit null (disabled) from parent');
+    }
+
+    /**
+     * Test that the nearest ancestor with ApplyCacheToChildren wins over a
+     * more distant one.
+     */
+    public function testNearestAncestorWithApplyToChildrenWins()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        // Make archive_override_no_apply also apply to children with a different max-age
+        $middlePage = $this->objFromFixture(SiteTree::class, 'archive_override_no_apply');
+        $middlePage->ApplyCacheToChildren = true;
+        $middlePage->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_override_no_apply_child');
+
+        $source = $child->findInheritedCacheSource();
+        $this->assertEquals($middlePage->ID, $source->ID,
+            'Nearest ancestor with ApplyCacheToChildren should win');
+
+        $header = $child->getCacheControlHeader();
+        $this->assertEquals('private, max-age=600, must-revalidate', $header,
+            'Should use nearest ancestor settings (600), not grandparent (86400)');
+    }
+
+    /**
+     * Test that a page with OverrideCacheControl=true never walks up the tree,
+     * even if it has a parent with ApplyCacheToChildren.
+     */
+    public function testPageWithOverrideNeverInherits()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child_with_override');
+
+        // Verify it has a parent with ApplyCacheToChildren
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+        $this->assertTrue((bool)$archive->ApplyCacheToChildren);
+
+        // But the child has its own override, so it should use its own settings
+        $header = $child->getCacheControlHeader();
+        $this->assertEquals('private, max-age=300', $header);
+        $this->assertNotEquals('public, max-age=86400, must-revalidate', $header,
+            'Child with override should not inherit parent settings');
+    }
+
+    /**
+     * Test that enabling override on a child and saving preserves the inherited
+     * values that were shown in the form (from ancestor, not site config).
+     */
+    public function testEnablingOverridePrePopulatesFromAncestor()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        // archive has public, 86400, must-revalidate, ApplyCacheToChildren=true
+        // archive_child has no override, so CMS shows archive's values
+
+        // Simulate the user enabling override on archive_child — the form would
+        // show archive's values (86400), so that's what gets submitted
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+        $child->OverrideCacheControl = true;
+        $child->EnableCacheControl = true;
+        $child->CacheType = 'public';
+        $child->CacheDuration = 'maxage';
+        $child->MaxAgePreset = '86400';
+        $child->EnableMustRevalidate = true;
+        $child->write();
+
+        $header = $child->getCacheControlHeader();
+        $this->assertEquals('public, max-age=86400, must-revalidate', $header,
+            'Values pre-populated from ancestor should be preserved on save');
     }
 }

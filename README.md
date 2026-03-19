@@ -14,6 +14,7 @@ A Silverstripe CMS module that gives content editors control over HTTP Cache-Con
 - **Conditional field visibility** using DisplayLogic
 - **Performance optimised** - minimal database queries
 - **Sensible defaults** - 120 seconds cache time
+- **Cache inheritance** - optionally apply cache settings to all descendant pages (opt-in via config)
 
 ## Version Compatibility
 
@@ -74,6 +75,38 @@ Each page has a **Cache Control** tab where you can:
 
 The page will show whether settings are inherited from site config or overridden at the page level.
 
+### Cache Inheritance (Section-Level Overrides)
+
+For sites with large sections that need different cache settings (e.g., an `/archive` section with 1000+ pages), you can configure a parent page's cache settings to automatically apply to all its descendant pages.
+
+This feature is **disabled by default** because it adds database queries per request to walk the page tree. Enable it in your project's YAML config:
+
+```yaml
+# app/_config/cache-control.yml
+SilverStripe\CMS\Model\SiteTree:
+  enable_cache_inheritance: true
+```
+
+Once enabled:
+
+1. Navigate to the parent page (e.g., `/archive`) in the CMS
+2. Enable **Override Site Cache Settings**
+3. Configure the desired cache settings (e.g., 1 day / 86400 seconds)
+4. Check **Apply to child pages**
+5. Save
+
+All descendant pages that don't have their own cache override will now use the parent's cache settings. The Cache Control tab on each child page will show the inherited source (e.g., "inherited from Archive").
+
+**How inheritance resolves:**
+
+1. If a page has its own cache override → uses its own settings
+2. If an ancestor has "Apply to child pages" enabled → uses the **nearest** ancestor's settings
+3. Otherwise → uses site-wide settings
+
+> **Note:** This uses runtime tree-walking, not save-time propagation. Changes to a parent's cache settings take effect immediately on the next request to any child page. There is no need to re-save child pages.
+
+> **Tip:** For typical Silverstripe sites with 3-5 levels of page depth, the performance overhead is minimal (1-4 additional database queries per uncached request). If your site has deeply nested page trees, consider whether the convenience outweighs the query cost.
+
 ## Cache Control Options Explained
 
 ### Public vs Private
@@ -102,8 +135,8 @@ Completely prevents caching. Use for sensitive or rapidly changing content. When
 The module consists of three main components:
 
 1. **CacheControlSiteConfigExtension**: Adds cache control fields to SiteConfig
-2. **CacheControlPageExtension**: Adds page-level override functionality
-3. **CacheControlContentControllerExtension**: Applies the appropriate cache control headers to responses
+2. **CacheControlPageExtension**: Adds page-level override functionality and optional cache inheritance from parent pages
+3. **CacheControlContentControllerExtension**: Applies the appropriate cache control headers to responses, resolving from page override → ancestor inheritance → site config
 
 ### HTTP Headers
 
@@ -120,6 +153,7 @@ When max-age is specified, the Expires header is calculated as the current time 
 - Page overrides are checked first to avoid unnecessary SiteConfig lookups
 - All cache settings are stored as database fields for optimal performance
 - No additional queries are made if cache control is disabled
+- **Cache inheritance** (`enable_cache_inheritance`) is disabled by default. When enabled, each uncached page request walks up the page tree (typically 3-5 levels) to find an ancestor with "Apply to child pages" enabled. This adds O(d) queries where d is the tree depth. When disabled, zero additional queries are made — behaviour is identical to the module without this feature.
 
 ### Middleware Priority
 

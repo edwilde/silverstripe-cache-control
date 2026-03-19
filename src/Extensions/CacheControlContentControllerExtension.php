@@ -43,12 +43,26 @@ class CacheControlContentControllerExtension extends Extension
             return;
         }
 
-        // Check if page has override enabled
+        // Check if page has its own override enabled
         if ($page->OverrideCacheControl && $page->hasExtension(CacheControlPageExtension::class)) {
             $this->applyPageSettings($page);
-        } else {
-            $this->applySiteSettings();
+            return;
         }
+
+        // Check for an ancestor that applies its cache settings to children.
+        // findInheritedCacheSource() respects the enable_cache_inheritance config —
+        // it returns null immediately when the feature is disabled, so this block
+        // adds zero overhead unless a developer has opted in via YAML config.
+        if ($page->hasExtension(CacheControlPageExtension::class)) {
+            $ancestor = $page->findInheritedCacheSource();
+            if ($ancestor) {
+                $this->applyPageSettings($ancestor);
+                return;
+            }
+        }
+
+        // Fall back to site config
+        $this->applySiteSettings();
     }
 
     /**

@@ -11,6 +11,12 @@ SilverStripe\SiteConfig\SiteConfig:
 SilverStripe\CMS\Model\SiteTree:
   extensions:
     - Edwilde\CacheControl\Extensions\CacheControlPageExtension
+  # Cache inheritance allows child pages to inherit cache settings from a parent page.
+  # When enabled, editors can check "Apply to child pages" on a parent page and all
+  # descendant pages will use that parent's cache settings (unless they have their own override).
+  # Disabled by default because it adds database queries per request to walk the page tree.
+  # Enable in your project's YAML config if you need section-level cache overrides.
+  enable_cache_inheritance: false
 
 # Apply our controller extension to apply CMS settings
 SilverStripe\CMS\Controllers\ContentController:

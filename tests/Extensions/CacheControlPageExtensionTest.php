@@ -254,6 +254,32 @@ class CacheControlPageExtensionTest extends SapphireTest
         $this->assertEquals('public, max-age=300, must-revalidate', $header);
     }
 
+    public function testApplyCacheToChildrenFieldExistsWhenConfigEnabled()
+    {
+        // Enable cache inheritance via config
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = true;
+        $fields = $page->getCMSFields();
+
+        $field = $fields->dataFieldByName('ApplyCacheToChildren');
+        $this->assertNotNull($field, 'ApplyCacheToChildren field should exist when config enabled');
+    }
+
+    public function testApplyCacheToChildrenFieldHiddenWhenConfigDisabled()
+    {
+        // Ensure cache inheritance is disabled (default)
+        SiteTree::config()->set('enable_cache_inheritance', false);
+
+        $page = SiteTree::create();
+        $page->OverrideCacheControl = true;
+        $fields = $page->getCMSFields();
+
+        $field = $fields->dataFieldByName('ApplyCacheToChildren');
+        $this->assertNull($field, 'ApplyCacheToChildren field should not exist when config disabled');
+    }
+
     /**
      * Enabling override and explicitly choosing a value that matches the page's DB default
      * (e.g., 120s) should not be overwritten — the user's choice must be respected.

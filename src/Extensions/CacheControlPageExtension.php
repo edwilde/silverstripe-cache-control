@@ -117,6 +117,7 @@ class CacheControlPageExtension extends Extension
             'MaxAge',
             'MaxAgePreset',
             'EnableMustRevalidate',
+            'ApplyCacheToChildren',
         ]);
 
         // Display the current effective cache control header
@@ -136,6 +137,18 @@ class CacheControlPageExtension extends Extension
 
         $overrideField = CheckboxField::create('OverrideCacheControl', 'Override Site Cache Settings')
             ->setDescription('Enable this to set custom cache control for this specific page, overriding site-wide settings.');
+
+        // Cache inheritance: "Apply to child pages" checkbox.
+        // Only available when enable_cache_inheritance is true in YAML config.
+        // This avoids exposing the feature (and its runtime overhead) unless a developer opts in.
+        $applyToChildrenField = null;
+        if ($this->owner->config()->get('enable_cache_inheritance')) {
+            $applyToChildrenField = CheckboxField::create('ApplyCacheToChildren', 'Apply to child pages')
+                ->setDescription(
+                    'These cache settings will apply to all descendant pages unless they have their own cache control override. '
+                    . 'Child pages will show these settings as inherited.'
+                );
+        }
 
         $pageHeaderField = HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3);
         $pageInfoField = LiteralField::create('PageCacheControlInfo',
@@ -185,6 +198,11 @@ class CacheControlPageExtension extends Extension
         $pageInfoField->displayIf('OverrideCacheControl')->isChecked();
         $enableCacheField->displayIf('OverrideCacheControl')->isChecked();
 
+        if ($applyToChildrenField) {
+            $applyToChildrenField->displayIf('OverrideCacheControl')->isChecked()
+                ->andIf('EnableCacheControl')->isChecked();
+        }
+
         // Second level: show when override AND cache control are enabled
         // Note: OptionsetFields must be wrapped for display logic to work properly
         $cacheTypeWrapper = Wrapper::create($cacheTypeField);
@@ -226,15 +244,20 @@ class CacheControlPageExtension extends Extension
         $pageCacheControlWrapper->displayIf('OverrideCacheControl')->isChecked()
             ->andIf('EnableCacheControl')->isChecked()->end();
 
-        $fields->addFieldsToTab('Root.CacheControl', [
+        $cacheControlFields = [
             $headerField,
             $currentCacheControlField,
             $overrideField,
             $pageHeaderField,
             $pageInfoField,
             $enableCacheField,
-            $pageCacheControlWrapper,
-        ]);
+        ];
+        if ($applyToChildrenField) {
+            $cacheControlFields[] = $applyToChildrenField;
+        }
+        $cacheControlFields[] = $pageCacheControlWrapper;
+
+        $fields->addFieldsToTab('Root.CacheControl', $cacheControlFields);
     }
 
     /**

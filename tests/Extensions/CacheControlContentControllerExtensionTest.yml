@@ -1,3 +1,24 @@
 SilverStripe\CMS\Model\SiteTree:
   test_page:
     Title: 'Test Cache Control Page'
+  archive:
+    Title: 'Archive'
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'public'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '86400'
+    EnableMustRevalidate: true
+    ApplyCacheToChildren: true
+  archive_child:
+    Title: 'Archive Child'
+    Parent: =>SilverStripe\CMS\Model\SiteTree.archive
+  archive_child_with_override:
+    Title: 'Archive Child With Override'
+    Parent: =>SilverStripe\CMS\Model\SiteTree.archive
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'private'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '300'
+    EnableMustRevalidate: false

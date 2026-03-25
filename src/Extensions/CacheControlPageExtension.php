@@ -30,7 +30,9 @@ use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
 use SilverStripe\Forms\ToggleCompositeField;
 use SilverStripe\CMS\Model\SiteTree;
+use SilverStripe\ORM\DB;
 use SilverStripe\SiteConfig\SiteConfig;
+use SilverStripe\Versioned\Versioned;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 
 /**
@@ -60,6 +62,23 @@ class CacheControlPageExtension extends Extension
     private static bool $enable_cache_inheritance = false;
 
     /**
+     * Max-age in seconds to use when a page has unpublished draft changes.
+     *
+     * When a page has been saved but not published, this value replaces the normal
+     * max-age to ensure CDN caches expire quickly when the page is eventually published.
+     *
+     * Controlled by the EnableDraftCacheReduction checkbox in SiteConfig.
+     * Override via YAML config:
+     *
+     *     SilverStripe\CMS\Model\SiteTree:
+     *       draft_cache_max_age: 30
+     *
+     * @config
+     * @var int
+     */
+    private static int $draft_cache_max_age = 10;
+
+    /**
      * Database fields for page-level cache control
      *
      * @var array
@@ -73,6 +92,7 @@ class CacheControlPageExtension extends Extension
         'MaxAgePreset' => 'Enum("120,300,600,3600,86400,custom","120")',
         'EnableMustRevalidate' => 'Boolean',
         'ApplyCacheToChildren' => 'Boolean',
+        'HasPendingDraftChanges' => 'Boolean',
     ];
 
     /**
@@ -91,6 +111,7 @@ class CacheControlPageExtension extends Extension
         'MaxAgePreset' => '120',
         'EnableMustRevalidate' => true,
         'ApplyCacheToChildren' => false,
+        'HasPendingDraftChanges' => false,
     ];
 
     /**
@@ -119,6 +140,7 @@ class CacheControlPageExtension extends Extension
             'MaxAgePreset',
             'EnableMustRevalidate',
             'ApplyCacheToChildren',
+            'HasPendingDraftChanges',
         ]);
 
         // Display the current effective cache control header
@@ -358,6 +380,53 @@ class CacheControlPageExtension extends Extension
     }
 
     /**
+     * Flag the Live record when a page has unpublished draft changes.
+     *
+     * When an editor saves a page without publishing, this sets HasPendingDraftChanges=true
+     * on the Live record via direct SQL. This flag is read at request time to reduce
+     * the cache max-age, avoiding a per-request version comparison query.
+     */
+    public function onAfterWrite()
+    {
+        // Only flag when the page is already published and now has draft differences
+        if ($this->owner->isPublished() && $this->owner->isModifiedOnDraft()) {
+            $table = $this->owner->stageTable($this->owner->baseTable(), Versioned::LIVE);
+            DB::prepared_query(
+                "UPDATE \"{$table}\" SET \"HasPendingDraftChanges\" = ? WHERE \"ID\" = ?",
+                [1, $this->owner->ID]
+            );
+        }
+    }
+
+    /**
+     * Clear the draft changes flag when a page is published.
+     *
+     * Publishing copies draft to live, so the content is now in sync.
+     * The flag is cleared explicitly for safety, though the copy operation
+     * also carries the draft's default false value.
+     */
+    public function onAfterPublish()
+    {
+        $table = $this->owner->stageTable($this->owner->baseTable(), Versioned::LIVE);
+        DB::prepared_query(
+            "UPDATE \"{$table}\" SET \"HasPendingDraftChanges\" = ? WHERE \"ID\" = ?",
+            [0, $this->owner->ID]
+        );
+    }
+
+    /**
+     * Clear the draft changes flag when draft changes are discarded.
+     */
+    public function onAfterRevertToLive()
+    {
+        $table = $this->owner->stageTable($this->owner->baseTable(), Versioned::LIVE);
+        DB::prepared_query(
+            "UPDATE \"{$table}\" SET \"HasPendingDraftChanges\" = ? WHERE \"ID\" = ?",
+            [0, $this->owner->ID]
+        );
+    }
+
+    /**
      * Build the cache control header from page-specific settings
      *
      * Constructs the header string based on selected options:
@@ -486,11 +555,28 @@ class CacheControlPageExtension extends Extension
             $caveat = '<br><small>Note: Silverstripe may override this at runtime for pages with forms, active sessions, or restricted access.</small>';
         }
 
+        // Check if draft cache reduction is active — use isModifiedOnDraft() for CMS context
+        // (the HasPendingDraftChanges flag lives on the Live record, but we're on Draft stage here)
+        $draftNotice = '';
+        $siteConfigForDraft = SiteConfig::current_site_config();
+        if ($siteConfigForDraft->EnableDraftCacheReduction
+            && $this->owner->isPublished()
+            && $this->owner->isModifiedOnDraft()
+        ) {
+            $draftMaxAge = $this->owner->config()->get('draft_cache_max_age');
+            $draftNotice = sprintf(
+                '<br><span class="message warning">Cache time temporarily reduced to %d seconds '
+                . '— this page has unpublished changes. Publish to restore normal cache time.</span>',
+                $draftMaxAge
+            );
+        }
+
         return sprintf(
-            '<code>%s</code><br><small>%s</small>%s',
+            '<code>%s</code><br><small>%s</small>%s%s',
             htmlspecialchars($header),
             $source,
-            $caveat
+            $caveat,
+            $draftNotice
         );
     }
 }

@@ -196,4 +196,18 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $header = $siteConfig->getCacheControlHeader();
         $this->assertEquals('public, max-age=120', $header, 'Negative custom max age should fall back to 120');
     }
+
+    public function testDraftCacheReductionFieldExists()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $fields = $siteConfig->getCMSFields();
+        $field = $fields->dataFieldByName('EnableDraftCacheReduction');
+        $this->assertNotNull($field, 'EnableDraftCacheReduction field should exist');
+    }
+
+    public function testDraftCacheReductionDefaultEnabled()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $this->assertTrue((bool)$siteConfig->EnableDraftCacheReduction, 'Draft cache reduction should be enabled by default');
+    }
 }

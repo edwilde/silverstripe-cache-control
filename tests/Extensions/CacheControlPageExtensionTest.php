@@ -7,6 +7,7 @@ use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\SiteConfig\SiteConfig;
+use SilverStripe\Versioned\Versioned;
 
 class CacheControlPageExtensionTest extends SapphireTest
 {
@@ -590,5 +591,131 @@ class CacheControlPageExtensionTest extends SapphireTest
         $header = $child->getCacheControlHeader();
         $this->assertEquals('public, max-age=86400, must-revalidate', $header,
             'Values pre-populated from ancestor should be preserved on save');
+    }
+
+    public function testSaveDraftSetsPendingFlag()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->publishSingle();
+
+        // Make a draft change
+        $page->Title = 'Updated Title';
+        $page->write();
+
+        // Check the Live record has the flag set
+        $livePage = Versioned::withVersionedMode(function () use ($page) {
+            Versioned::set_stage(Versioned::LIVE);
+            return SiteTree::get()->byID($page->ID);
+        });
+
+        $this->assertTrue((bool)$livePage->HasPendingDraftChanges,
+            'Live record should have HasPendingDraftChanges=true after draft save');
+    }
+
+    public function testPublishClearsPendingFlag()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->publishSingle();
+        $page->Title = 'Updated Title';
+        $page->write();
+
+        // Now publish
+        $page->publishSingle();
+
+        $livePage = Versioned::withVersionedMode(function () use ($page) {
+            Versioned::set_stage(Versioned::LIVE);
+            return SiteTree::get()->byID($page->ID);
+        });
+
+        $this->assertFalse((bool)$livePage->HasPendingDraftChanges,
+            'Live record should have HasPendingDraftChanges=false after publishing');
+    }
+
+    public function testNewUnpublishedPageDoesNotSetFlag()
+    {
+        $page = SiteTree::create();
+        $page->Title = 'Brand New Page';
+        $page->write();
+
+        // Page has never been published — no live record to flag
+        $this->assertFalse($page->isPublished(), 'Page should not be published');
+    }
+
+    public function testRepublishWithoutChangesDoesNotSetFlag()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->publishSingle();
+
+        // Re-save without making changes — isModifiedOnDraft() should be false
+        $page->write();
+
+        $livePage = Versioned::withVersionedMode(function () use ($page) {
+            Versioned::set_stage(Versioned::LIVE);
+            return SiteTree::get()->byID($page->ID);
+        });
+
+        $this->assertFalse((bool)$livePage->HasPendingDraftChanges,
+            'Flag should not be set when saving without actual changes');
+    }
+
+    public function testDescriptionShowsDraftNotice()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', false);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->publishSingle();
+        $page->Title = 'Draft Change';
+        $page->write();
+
+        $description = $page->getEffectiveCacheControlDescription();
+        $this->assertStringContainsString('unpublished changes', strtolower($description));
+        $this->assertStringContainsString('10 seconds', $description);
+    }
+
+    public function testDescriptionNoDraftNoticeWhenPublished()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->publishSingle();
+
+        $description = $page->getEffectiveCacheControlDescription();
+        $this->assertStringNotContainsString('unpublished changes', strtolower($description));
+    }
+
+    public function testDescriptionNoDraftNoticeWhenFeatureDisabled()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = false;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->publishSingle();
+        $page->Title = 'Draft Change';
+        $page->write();
+
+        $description = $page->getEffectiveCacheControlDescription();
+        $this->assertStringNotContainsString('unpublished changes', strtolower($description));
     }
 }

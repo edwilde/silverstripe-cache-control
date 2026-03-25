@@ -292,4 +292,190 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             'Should use site config (private) not parent (public) when config disabled'
         );
     }
+
+    public function testDraftPageGetsReducedMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '3600';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->HasPendingDraftChanges = true;
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(10, $middleware->getDirective('max-age'),
+            'Max-age should be reduced to 10 for page with pending draft changes');
+    }
+
+    public function testPublishedPageKeepsNormalMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '3600';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        // No draft changes — HasPendingDraftChanges stays false
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(3600, $middleware->getDirective('max-age'),
+            'Max-age should remain 3600 for published page without draft changes');
+    }
+
+    public function testDraftReductionDisabledViaSiteConfig()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = false;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '3600';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->HasPendingDraftChanges = true;
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(3600, $middleware->getDirective('max-age'),
+            'Max-age should remain 3600 when draft reduction is disabled');
+    }
+
+    public function testDraftReductionWorksWithPageOverride()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '86400';
+        $page->EnableMustRevalidate = false;
+        $page->HasPendingDraftChanges = true;
+        $page->write();
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(10, $middleware->getDirective('max-age'),
+            'Max-age should be reduced to 10 even with page override of 86400');
+    }
+
+    public function testDraftReductionSkippedWhenCacheDisabled()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = false;
+        $page->HasPendingDraftChanges = true;
+        $page->write();
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(
+            HTTPCacheControlMiddleware::STATE_DISABLED,
+            $middleware->getState(),
+            'Cache should remain disabled, not reduced to 10s'
+        );
+    }
+
+    public function testCustomDraftMaxAgeViaConfig()
+    {
+        SiteTree::config()->set('draft_cache_max_age', 30);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '3600';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->HasPendingDraftChanges = true;
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(30, $middleware->getDirective('max-age'),
+            'Max-age should be 30 from custom config, not default 10');
+    }
+
+    public function testDraftReductionStillAllowsFormDisableCache()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '3600';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->HasPendingDraftChanges = true;
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $middleware->disableCache();
+
+        $this->assertEquals(
+            HTTPCacheControlMiddleware::STATE_DISABLED,
+            $middleware->getState(),
+            'Form disableCache() should still override draft-reduced cache'
+        );
+    }
+
+    public function testDraftReductionWithInheritedCache()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+        $child->HasPendingDraftChanges = true;
+
+        $controller = ContentController::create($child);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(10, $middleware->getDirective('max-age'),
+            'Inherited cache should still be reduced when child has draft changes');
+    }
 }

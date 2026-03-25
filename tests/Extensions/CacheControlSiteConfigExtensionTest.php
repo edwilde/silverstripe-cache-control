@@ -197,6 +197,9 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $this->assertEquals('public, max-age=120', $header, 'Negative custom max age should fall back to 120');
     }
 
+    /**
+     * The EnableDraftCacheReduction checkbox should be present in SiteConfig CMS fields.
+     */
     public function testDraftCacheReductionFieldExists()
     {
         $siteConfig = SiteConfig::current_site_config();
@@ -205,6 +208,9 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $this->assertNotNull($field, 'EnableDraftCacheReduction field should exist');
     }
 
+    /**
+     * Draft cache reduction should be enabled by default in SiteConfig.
+     */
     public function testDraftCacheReductionDefaultEnabled()
     {
         $siteConfig = SiteConfig::current_site_config();

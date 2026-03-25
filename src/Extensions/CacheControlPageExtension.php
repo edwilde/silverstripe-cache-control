@@ -30,7 +30,7 @@ use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
 use SilverStripe\Forms\ToggleCompositeField;
 use SilverStripe\CMS\Model\SiteTree;
-use SilverStripe\ORM\DB;
+use SilverStripe\ORM\Queries\SQLUpdate;
 use SilverStripe\SiteConfig\SiteConfig;
 use SilverStripe\Versioned\Versioned;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
@@ -383,18 +383,14 @@ class CacheControlPageExtension extends Extension
      * Flag the Live record when a page has unpublished draft changes.
      *
      * When an editor saves a page without publishing, this sets HasPendingDraftChanges=true
-     * on the Live record via direct SQL. This flag is read at request time to reduce
-     * the cache max-age, avoiding a per-request version comparison query.
+     * on the Live record. This flag is read at request time to reduce the cache max-age,
+     * avoiding a per-request version comparison query.
      */
     public function onAfterWrite()
     {
         // Only flag when the page is already published and now has draft differences
         if ($this->owner->isPublished() && $this->owner->isModifiedOnDraft()) {
-            $table = $this->owner->stageTable($this->owner->baseTable(), Versioned::LIVE);
-            DB::prepared_query(
-                "UPDATE \"{$table}\" SET \"HasPendingDraftChanges\" = ? WHERE \"ID\" = ?",
-                [1, $this->owner->ID]
-            );
+            $this->updateLiveDraftFlag(true);
         }
     }
 
@@ -407,11 +403,7 @@ class CacheControlPageExtension extends Extension
      */
     public function onAfterPublish()
     {
-        $table = $this->owner->stageTable($this->owner->baseTable(), Versioned::LIVE);
-        DB::prepared_query(
-            "UPDATE \"{$table}\" SET \"HasPendingDraftChanges\" = ? WHERE \"ID\" = ?",
-            [0, $this->owner->ID]
-        );
+        $this->updateLiveDraftFlag(false);
     }
 
     /**
@@ -419,11 +411,24 @@ class CacheControlPageExtension extends Extension
      */
     public function onAfterRevertToLive()
     {
+        $this->updateLiveDraftFlag(false);
+    }
+
+    /**
+     * Update the HasPendingDraftChanges flag on the Live record.
+     *
+     * Uses SQLUpdate to write directly to the Live table without triggering
+     * a full DataObject write cycle or versioning hooks.
+     *
+     * @param bool $hasPendingChanges Whether the page has pending draft changes
+     */
+    private function updateLiveDraftFlag(bool $hasPendingChanges): void
+    {
         $table = $this->owner->stageTable($this->owner->baseTable(), Versioned::LIVE);
-        DB::prepared_query(
-            "UPDATE \"{$table}\" SET \"HasPendingDraftChanges\" = ? WHERE \"ID\" = ?",
-            [0, $this->owner->ID]
-        );
+        SQLUpdate::create($table)
+            ->addWhere(['ID' => $this->owner->ID])
+            ->assign('HasPendingDraftChanges', $hasPendingChanges ? 1 : 0)
+            ->execute();
     }
 
     /**

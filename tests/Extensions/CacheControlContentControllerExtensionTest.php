@@ -293,6 +293,9 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
         );
     }
 
+    /**
+     * Page with HasPendingDraftChanges=true should have its max-age reduced to 10s.
+     */
     public function testDraftPageGetsReducedMaxAge()
     {
         $siteConfig = SiteConfig::current_site_config();
@@ -315,6 +318,9 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             'Max-age should be reduced to 10 for page with pending draft changes');
     }
 
+    /**
+     * Page without draft changes should keep the normal site config max-age.
+     */
     public function testPublishedPageKeepsNormalMaxAge()
     {
         $siteConfig = SiteConfig::current_site_config();
@@ -337,6 +343,9 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             'Max-age should remain 3600 for published page without draft changes');
     }
 
+    /**
+     * When EnableDraftCacheReduction is false in SiteConfig, draft pages keep normal max-age.
+     */
     public function testDraftReductionDisabledViaSiteConfig()
     {
         $siteConfig = SiteConfig::current_site_config();
@@ -359,6 +368,9 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             'Max-age should remain 3600 when draft reduction is disabled');
     }
 
+    /**
+     * Draft reduction should override a page-level max-age even when page has its own cache override.
+     */
     public function testDraftReductionWorksWithPageOverride()
     {
         $siteConfig = SiteConfig::current_site_config();
@@ -384,6 +396,9 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             'Max-age should be reduced to 10 even with page override of 86400');
     }
 
+    /**
+     * When page-level cache is explicitly disabled, draft reduction should not re-enable it.
+     */
     public function testDraftReductionSkippedWhenCacheDisabled()
     {
         $siteConfig = SiteConfig::current_site_config();
@@ -408,6 +423,9 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
         );
     }
 
+    /**
+     * The draft_cache_max_age config should be respected when reducing max-age.
+     */
     public function testCustomDraftMaxAgeViaConfig()
     {
         SiteTree::config()->set('draft_cache_max_age', 30);
@@ -432,6 +450,9 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             'Max-age should be 30 from custom config, not default 10');
     }
 
+    /**
+     * Form's disableCache() should still override draft-reduced cache at higher forcing level.
+     */
     public function testDraftReductionStillAllowsFormDisableCache()
     {
         $siteConfig = SiteConfig::current_site_config();
@@ -459,6 +480,9 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
         );
     }
 
+    /**
+     * Draft reduction should apply even when the page uses inherited cache settings from an ancestor.
+     */
     public function testDraftReductionWithInheritedCache()
     {
         SiteTree::config()->set('enable_cache_inheritance', true);

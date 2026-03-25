@@ -593,6 +593,9 @@ class CacheControlPageExtensionTest extends SapphireTest
             'Values pre-populated from ancestor should be preserved on save');
     }
 
+    /**
+     * Saving a published page without publishing should set HasPendingDraftChanges on the Live record.
+     */
     public function testSaveDraftSetsPendingFlag()
     {
         $page = $this->objFromFixture(SiteTree::class, 'page1');
@@ -612,6 +615,9 @@ class CacheControlPageExtensionTest extends SapphireTest
             'Live record should have HasPendingDraftChanges=true after draft save');
     }
 
+    /**
+     * Publishing a page should clear HasPendingDraftChanges on the Live record.
+     */
     public function testPublishClearsPendingFlag()
     {
         $page = $this->objFromFixture(SiteTree::class, 'page1');
@@ -631,6 +637,9 @@ class CacheControlPageExtensionTest extends SapphireTest
             'Live record should have HasPendingDraftChanges=false after publishing');
     }
 
+    /**
+     * A page that has never been published should not have the flag set (no Live record exists).
+     */
     public function testNewUnpublishedPageDoesNotSetFlag()
     {
         $page = SiteTree::create();
@@ -641,6 +650,9 @@ class CacheControlPageExtensionTest extends SapphireTest
         $this->assertFalse($page->isPublished(), 'Page should not be published');
     }
 
+    /**
+     * Re-saving a published page without actual content changes should not set the flag.
+     */
     public function testRepublishWithoutChangesDoesNotSetFlag()
     {
         $page = $this->objFromFixture(SiteTree::class, 'page1');
@@ -658,6 +670,9 @@ class CacheControlPageExtensionTest extends SapphireTest
             'Flag should not be set when saving without actual changes');
     }
 
+    /**
+     * CMS description should show a draft reduction warning when a page has unpublished changes.
+     */
     public function testDescriptionShowsDraftNotice()
     {
         SiteTree::config()->set('enable_cache_inheritance', false);
@@ -681,6 +696,9 @@ class CacheControlPageExtensionTest extends SapphireTest
         $this->assertStringContainsString('10 seconds', $description);
     }
 
+    /**
+     * CMS description should not show a draft notice when the page is fully published.
+     */
     public function testDescriptionNoDraftNoticeWhenPublished()
     {
         $siteConfig = SiteConfig::current_site_config();
@@ -699,6 +717,9 @@ class CacheControlPageExtensionTest extends SapphireTest
         $this->assertStringNotContainsString('unpublished changes', strtolower($description));
     }
 
+    /**
+     * CMS description should not show a draft notice when EnableDraftCacheReduction is disabled.
+     */
     public function testDescriptionNoDraftNoticeWhenFeatureDisabled()
     {
         $siteConfig = SiteConfig::current_site_config();

@@ -113,6 +113,29 @@ All descendant pages that don't have their own cache override will now use the p
 > [!TIP]
 > For typical Silverstripe sites with 3-5 levels of page depth, the performance overhead is minimal (1-4 additional database queries per uncached request). If your site has deeply nested page trees, consider whether the convenience outweighs the query cost.
 
+### Draft Cache Reduction
+
+When a page has been saved but not published, its cache time is automatically reduced to 10 seconds. This ensures that when the page is eventually published, CDN caches expire quickly and visitors see the new content sooner.
+
+This feature is **enabled by default** via the "Reduce cache time for pages with unpublished changes" checkbox in **Settings > Cache Control > Cache-Control Header (Advanced)**.
+
+**How it works:**
+
+1. Editor saves a page (creates a draft) without publishing
+2. The page's cache max-age is automatically reduced to 10 seconds
+3. When the editor publishes, the normal cache time is restored
+4. If the editor discards draft changes, the normal cache time is also restored
+
+The reduced cache time (default 10 seconds) can be overridden via YAML config:
+
+```yaml
+SilverStripe\CMS\Model\SiteTree:
+  draft_cache_max_age: 30
+```
+
+> [!NOTE]
+> The draft detection uses a flag set at save time, not a per-request database query. This means zero performance overhead at request time.
+
 ## Cache Control Options Explained
 
 ### Public vs Private
@@ -160,6 +183,7 @@ When max-age is specified, the Expires header is calculated as the current time 
 - All cache settings are stored as database fields for optimal performance
 - No additional queries are made if cache control is disabled
 - **Cache inheritance** (`enable_cache_inheritance`) is disabled by default. When enabled, each uncached page request walks up the page tree (typically 3-5 levels) to find an ancestor with "Apply to child pages" enabled. This adds O(d) queries where d is the tree depth. When disabled, zero additional queries are made — behaviour is identical to the module without this feature.
+- **Draft cache reduction** uses a flag set at save time (`onAfterWrite`/`onAfterPublish`), not a per-request version comparison. This means zero additional database queries at request time — the flag is already loaded in the page object.
 
 ### Middleware Priority
 

@@ -117,7 +117,10 @@ All descendant pages that don't have their own cache override will now use the p
 
 When a page has been saved but not published, its cache time is automatically reduced to 10 seconds. This ensures that when the page is eventually published, CDN caches expire quickly and visitors see the new content sooner.
 
-This feature is **enabled by default** via the "Reduce cache time for pages with unpublished changes" checkbox in **Settings > Cache Control > Cache-Control Header (Advanced)**.
+This feature is controlled by the "Reduce cache time for pages with unpublished changes" checkbox in **Settings > Cache Control > Cache-Control Header (Advanced)**, and is **enabled by default on new installs**.
+
+> [!IMPORTANT]
+> On an **existing site** upgrading to this version, the new setting is added to your already-saved configuration in the **off** state, so the feature starts out disabled. Open **Settings > Cache Control**, ensure the checkbox is ticked, and save once to enable it. (The default-on value only applies to newly created `SiteConfig` records via `populateDefaults()`; it does not retroactively switch on a `SiteConfig` row that already exists in your database.)
 
 **How it works:**
 

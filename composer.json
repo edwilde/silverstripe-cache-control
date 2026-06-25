@@ -32,9 +32,6 @@
         }
     },
     "extra": {
-        "expose": [
-            "client"
-        ],
         "project-files-installed": [
             "behat.yml",
             "phpunit.xml.dist"

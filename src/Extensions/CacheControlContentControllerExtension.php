@@ -43,26 +43,19 @@ class CacheControlContentControllerExtension extends Extension
             return;
         }
 
-        // Check if page has its own override enabled
+        // Resolve effective cache settings from page override, ancestor, or site config
         if ($page->OverrideCacheControl && $page->hasExtension(CacheControlPageExtension::class)) {
             $this->applyPageSettings($page);
-            return;
+        } elseif ($page->hasExtension(CacheControlPageExtension::class)
+            && ($ancestor = $page->findInheritedCacheSource())
+        ) {
+            $this->applyPageSettings($ancestor);
+        } else {
+            $this->applySiteSettings();
         }
 
-        // Check for an ancestor that applies its cache settings to children.
-        // findInheritedCacheSource() respects the enable_cache_inheritance config —
-        // it returns null immediately when the feature is disabled, so this block
-        // adds zero overhead unless a developer has opted in via YAML config.
-        if ($page->hasExtension(CacheControlPageExtension::class)) {
-            $ancestor = $page->findInheritedCacheSource();
-            if ($ancestor) {
-                $this->applyPageSettings($ancestor);
-                return;
-            }
-        }
-
-        // Fall back to site config
-        $this->applySiteSettings();
+        // After resolving effective settings, reduce max-age if page has pending draft changes
+        $this->applyDraftCacheReduction($page);
     }
 
     /**
@@ -158,6 +151,44 @@ class CacheControlContentControllerExtension extends Extension
 
         // Apply Vary headers
         $this->applyVaryHeaders($siteConfig);
+    }
+
+    /**
+     * Reduce cache max-age when a page has unpublished draft changes.
+     *
+     * The HasPendingDraftChanges flag is set at save time (onAfterWrite) and
+     * cleared at publish time (onAfterPublish), so this check reads a field
+     * already loaded in the page object — zero additional database queries.
+     *
+     * @param SiteTree $page The current page
+     */
+    protected function applyDraftCacheReduction(SiteTree $page)
+    {
+        // Check SiteConfig toggle
+        $siteConfig = SiteConfig::current_site_config();
+        if (!$siteConfig || !$siteConfig->EnableDraftCacheReduction) {
+            return;
+        }
+
+        // Skip if cache is already disabled — nothing to reduce
+        $middleware = HTTPCacheControlMiddleware::singleton();
+        if ($middleware->getState() === HTTPCacheControlMiddleware::STATE_DISABLED) {
+            return;
+        }
+
+        // Check the save-time flag — no DB query needed, already in the page object
+        if (!$page->HasPendingDraftChanges) {
+            return;
+        }
+
+        // Override max-age to the configured draft value
+        $draftMaxAge = (int)$page->config()->get('draft_cache_max_age');
+        if ($draftMaxAge < 1) {
+            $draftMaxAge = 10; // safety fallback
+        }
+
+        $middleware->setMaxAge($draftMaxAge);
+        $this->setExpiresHeader($draftMaxAge);
     }
 
     /**

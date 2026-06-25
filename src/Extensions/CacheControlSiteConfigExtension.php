@@ -56,6 +56,7 @@ class CacheControlSiteConfigExtension extends Extension
         'VaryXForwardedProtocol' => 'Boolean',
         'VaryCookie' => 'Boolean',
         'VaryAuthorization' => 'Boolean',
+        'EnableDraftCacheReduction' => 'Boolean',
     ];
 
     /**
@@ -77,6 +78,7 @@ class CacheControlSiteConfigExtension extends Extension
         'VaryXForwardedProtocol' => false,
         'VaryCookie' => false,
         'VaryAuthorization' => false,
+        'EnableDraftCacheReduction' => true,
     ];
 
     /**
@@ -103,6 +105,7 @@ class CacheControlSiteConfigExtension extends Extension
             'VaryXForwardedProtocol',
             'VaryCookie',
             'VaryAuthorization',
+            'EnableDraftCacheReduction',
         ]);
 
         $cacheTypeField = OptionsetField::create('CacheType', 'Cache Type', [
@@ -151,6 +154,17 @@ class CacheControlSiteConfigExtension extends Extension
         $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('EnableCacheControl')->isChecked();
 
+        $draftReductionField = CheckboxField::create(
+            'EnableDraftCacheReduction',
+            'Reduce cache time for pages with unpublished changes'
+        )->setDescription(
+            'When a page has been saved but not published, its cache time is temporarily reduced '
+            . 'so visitors see the new content sooner after publishing.'
+        );
+
+        $draftReductionField->displayIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('EnableCacheControl')->isChecked();
+
         // Main cache control settings in a collapsible section
         $cacheControlSection = ToggleCompositeField::create('CacheControlSettings', 'Cache-Control Header (Advanced)',
             [
@@ -159,6 +173,7 @@ class CacheControlSiteConfigExtension extends Extension
                 $maxAgePresetField,
                 $maxAgeField,
                 $mustRevalidateField,
+                $draftReductionField,
             ]
         )->setStartClosed(true);
 

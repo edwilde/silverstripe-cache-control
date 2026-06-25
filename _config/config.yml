@@ -17,6 +17,9 @@ SilverStripe\CMS\Model\SiteTree:
   # Disabled by default because it adds database queries per request to walk the page tree.
   # Enable in your project's YAML config if you need section-level cache overrides.
   enable_cache_inheritance: false
+  # When a page has unpublished draft changes, reduce max-age to this value (seconds).
+  # Controlled by the EnableDraftCacheReduction checkbox in SiteConfig.
+  draft_cache_max_age: 10
 
 # Apply our controller extension to apply CMS settings
 SilverStripe\CMS\Controllers\ContentController:

@@ -247,9 +247,13 @@ class CacheControlContentControllerExtension extends Extension
             $varyHeaders[] = 'Authorization';
         }
 
-        if (!empty($varyHeaders)) {
-            $middleware = HTTPCacheControlMiddleware::singleton();
-            $middleware->setVary(implode(', ', $varyHeaders));
-        }
+        // Always set Vary explicitly — even when no options are selected. The
+        // framework's HTTPCacheControlMiddleware ships a defaultVary of
+        // X-Forwarded-Protocol, which getVary() falls back to whenever vary has
+        // never been set. Skipping setVary() when $varyHeaders is empty would
+        // leak that default, so the CMS "unchecked" state would still emit
+        // Vary: X-Forwarded-Protocol. Passing '' clears the default.
+        $middleware = HTTPCacheControlMiddleware::singleton();
+        $middleware->setVary(implode(', ', $varyHeaders));
     }
 }

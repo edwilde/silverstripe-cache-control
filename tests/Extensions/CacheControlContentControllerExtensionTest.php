@@ -502,4 +502,70 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
         $this->assertEquals(10, $middleware->getDirective('max-age'),
             'Inherited cache should still be reduced when child has draft changes');
     }
+
+    /**
+     * Regression: with all Vary options unchecked, the framework's defaultVary
+     * (X-Forwarded-Protocol) must not leak into the response. Previously the
+     * extension skipped setVary() when no options were selected, so getVary()
+     * fell back to the framework default.
+     */
+    public function testAllVaryOptionsUncheckedEmitsNoVary()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->VaryAcceptEncoding = false;
+        $siteConfig->VaryXForwardedProtocol = false;
+        $siteConfig->VaryCookie = false;
+        $siteConfig->VaryAuthorization = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = false;
+        $page->write();
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(
+            [],
+            $middleware->getVary(),
+            'No Vary should be emitted when all options are unchecked (framework default must be cleared)'
+        );
+    }
+
+    /**
+     * Selecting only Accept-Encoding must replace the framework default, so
+     * X-Forwarded-Protocol does not appear alongside it.
+     */
+    public function testVaryReflectsSelectedOptionsOnly()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->VaryAcceptEncoding = true;
+        $siteConfig->VaryXForwardedProtocol = false;
+        $siteConfig->VaryCookie = false;
+        $siteConfig->VaryAuthorization = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = false;
+        $page->write();
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(
+            ['Accept-Encoding'],
+            $middleware->getVary(),
+            'Only the selected Vary option should be present, not the framework default'
+        );
+    }
 }

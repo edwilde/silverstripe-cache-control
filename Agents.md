@@ -25,7 +25,7 @@
 - **SilverStripe CMS**: 6.0+
 - **Dependencies**:
   - unclecheese/display-logic ^4.0 (conditional CMS field visibility)
-  - nswdpc/silverstripe-cache-headers dev-ss6 (robust cache header middleware — no tagged CMS 6 release yet)
+  - nswdpc/silverstripe-cache-headers ^2.0.0 (robust cache header middleware, CMS 6 compatible)
 - **Testing**: PHPUnit 11.3+
 
 ## Architecture

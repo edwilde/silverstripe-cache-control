@@ -15,7 +15,7 @@
         "silverstripe/framework": "^6.0",
         "silverstripe/cms": "^6.0",
         "unclecheese/display-logic": "^4.0",
-        "nswdpc/silverstripe-cache-headers": "dev-ss6"
+        "nswdpc/silverstripe-cache-headers": "^2.0.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^11.3",

@@ -27,6 +27,17 @@ SilverStripe\CMS\Controllers\ContentController:
     - Edwilde\CacheControl\Extensions\CacheControlContentControllerExtension
     - Edwilde\CacheControl\Extensions\DevCacheBypassExtension
 
+# Clear the framework's default Vary of X-Forwarded-Protocol. On page responses
+# this module already sets Vary explicitly from the CMS checkboxes, but the
+# framework default still leaked on controllers this module does not touch
+# (e.g. /Security/*). CDNs with strict Vary matching (e.g. Imperva's
+# "Comply With Vary", which only caches when Vary is exactly Accept-Encoding)
+# treat any extra value as uncacheable, so the CMS checkboxes must be the only
+# source of Vary values. Editors can still opt back in via the CMS checkbox.
+SilverStripe\Control\Middleware\HTTPCacheControlMiddleware:
+  defaultVary:
+    'X-Forwarded-Protocol': false
+
 # Use nswdpc's middleware and configuration
 # By default, caching is disabled (state: 'enabled' with no directives set)
 # CMS users can enable and configure via SiteConfig

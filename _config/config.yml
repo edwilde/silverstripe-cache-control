@@ -50,3 +50,11 @@ NSWDPC\Utilities\Cache\CacheHeaderConfiguration:
   no_store: null
   must_revalidate: null
   no_cache: null
+
+# Derive the Expires header from the final Cache-Control state, after all cache
+# decisions (including error handling) have been made
+SilverStripe\Core\Injector\Injector:
+  SilverStripe\Control\Director:
+    properties:
+      Middlewares:
+        ExpiresHeaderMiddleware: '%$Edwilde\CacheControl\Middleware\ExpiresHeaderMiddleware'

@@ -89,9 +89,6 @@ class CacheControlContentControllerExtension extends Extension
             $maxAge = $this->getMaxAgeValue($page->MaxAgePreset, $page->MaxAge);
             $middleware->setMaxAge($maxAge);
 
-            // Add Expires header to match max-age
-            $this->setExpiresHeader($maxAge);
-
             // Must revalidate
             if ($page->EnableMustRevalidate) {
                 $middleware->setMustRevalidate(true);
@@ -140,9 +137,6 @@ class CacheControlContentControllerExtension extends Extension
             $maxAge = $this->getMaxAgeValue($siteConfig->MaxAgePreset, $siteConfig->MaxAge);
             $middleware->setMaxAge($maxAge);
 
-            // Add Expires header to match max-age
-            $this->setExpiresHeader($maxAge);
-
             // Must revalidate
             if ($siteConfig->EnableMustRevalidate) {
                 $middleware->setMustRevalidate(true);
@@ -188,7 +182,6 @@ class CacheControlContentControllerExtension extends Extension
         }
 
         $middleware->setMaxAge($draftMaxAge);
-        $this->setExpiresHeader($draftMaxAge);
     }
 
     /**
@@ -204,21 +197,6 @@ class CacheControlContentControllerExtension extends Extension
             return (int)$customValue > 0 ? (int)$customValue : 120;
         }
         return (int)$preset;
-    }
-
-    /**
-     * Set the Expires header to match the max-age
-     *
-     * @param int $maxAge Max age in seconds
-     * @return void
-     */
-    protected function setExpiresHeader($maxAge)
-    {
-        $response = $this->owner->getResponse();
-        if ($response) {
-            $expires = gmdate('D, d M Y H:i:s', time() + $maxAge) . ' GMT';
-            $response->addHeader('Expires', $expires);
-        }
     }
 
     /**

@@ -174,9 +174,9 @@ The module consists of three main components:
 The module sets the following HTTP headers:
 
 - **Cache-Control**: The primary caching directive (e.g., `public, max-age=300`)
-- **Expires**: Automatically set to match the Cache-Control max-age for HTTP/1.0 compatibility
+- **Expires**: Derived from the final Cache-Control state by `ExpiresHeaderMiddleware` — set to match max-age on cacheable success responses, removed from error and no-store responses, for HTTP/1.0 compatibility
 
-When max-age is specified, the Expires header is calculated as the current time plus the max-age value in GMT format. This ensures compatibility with older HTTP/1.0 caches and proxies while maintaining full HTTP/1.1 Cache-Control support.
+When the final response is cacheable with a max-age, the Expires header is calculated as the current time plus the max-age value in GMT format, ensuring compatibility with older HTTP/1.0 caches and proxies while maintaining full HTTP/1.1 Cache-Control support. Error responses and no-store responses never carry an Expires header, so a failed request can never advertise itself as cacheable.
 
 ### Performance Considerations
 

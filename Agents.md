@@ -220,6 +220,12 @@ $wrapper = Wrapper::create($cacheTypeField);
 $wrapper->displayIf('EnableCacheControl')->isChecked()->end();
 ```
 
+**CMS field registration rules**:
+- Call `removeByName()` on every scaffolded field before adding the custom replacement; CMS 6 rejects duplicate names in a `FieldList`.
+- In `CacheControlPageExtension::updateCMSFields()`, every cache field is `setValue()`d explicitly from the effective source (own override, inheriting ancestor, or SiteConfig) so editors see the value the page actually uses before ticking override. New fields must join that block.
+
+**Two header paths, kept in step**: `CacheControlContentControllerExtension` emits the real header via the middleware; `CacheControlSiteConfigExtension::getCacheControlHeader()` and `CacheControlPageExtension::getPageCacheControlHeader()` build the preview shown in the CMS. A directive change that touches one and not the other shows editors a header the site never sends.
+
 **Performance Optimisation**:
 - Middleware checks page override flag first to avoid unnecessary SiteConfig lookups
 - All settings stored as database fields (no complex queries)

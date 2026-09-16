@@ -16,6 +16,8 @@
 - Public/Private cache type selection (mutually exclusive)
 - Max-age control with sensible 120-second default
 - Must-revalidate and no-store directives
+- Optional cache inheritance: a page's settings can apply to all descendants (`enable_cache_inheritance`, off by default)
+- Draft cache reduction: pages with unpublished changes get a short max-age until published
 - Conditional field visibility using DisplayLogic
 - Performance-optimised with minimal database queries
 
@@ -53,15 +55,17 @@ src/
 
 1. **Request comes in** → nswdpc middleware is registered to intercept
 2. **ContentController initializes** → `CacheControlContentControllerExtension::onAfterInit()` is triggered
-3. **Check for page override**:
+3. **Resolve the effective settings source**:
    - If `OverrideCacheControl` is enabled → Use page settings (via `applyPageSettings()`)
+   - Else if `enable_cache_inheritance` is on and `findInheritedCacheSource()` returns an ancestor with `ApplyCacheToChildren` → Use that ancestor's settings (via `applyPageSettings($ancestor)`)
    - Otherwise → Use site-wide SiteConfig settings (via `applySiteSettings()`)
 4. **Apply settings** to `HTTPCacheControlMiddleware` singleton:
    - Set cache state (public/private or disabled)
    - Set cache duration (max-age or no-store)
    - Add Expires header to match max-age
-   - Apply Vary headers based on CMS configuration
-5. **Middleware processes response** → nswdpc module applies configured headers, respecting:
+   - Apply Vary headers based on CMS configuration (always read from SiteConfig)
+5. **Draft cache reduction** (`applyDraftCacheReduction()`): if `EnableDraftCacheReduction` is on and the page's `HasPendingDraftChanges` flag is set, `max-age` and `Expires` drop to `draft_cache_max_age` (default 10s). The flag is written on save and cleared on publish, so this costs no extra query.
+6. **Middleware processes response** → nswdpc module applies configured headers, respecting:
    - Existing headers (doesn't override)
    - Forms on page (disables cache)
    - Error pages (configurable)
@@ -83,14 +87,19 @@ src/
 'VaryXForwardedProtocol' => 'Boolean'                  // Vary: X-Forwarded-Protocol (default: false)
 'VaryCookie' => 'Boolean'                              // Vary: Cookie (default: false)
 'VaryAuthorization' => 'Boolean'                       // Vary: Authorization (default: false)
+'EnableDraftCacheReduction' => 'Boolean'               // Shorten max-age on pages with unpublished changes (default: true)
 ```
 
-**SiteTree Table Extensions** (same fields as SiteConfig plus):
+**SiteTree Table Extensions** (cache type/duration/max-age/must-revalidate fields as SiteConfig, plus):
 ```php
 'OverrideCacheControl' => 'Boolean'                    // Enable page-specific override (default: false)
+'ApplyCacheToChildren' => 'Boolean'                    // Descendants inherit this page's settings (default: false; needs enable_cache_inheritance)
+'HasPendingDraftChanges' => 'Boolean'                  // Set on save, cleared on publish; drives draft cache reduction
 ```
 
 Note: Page-level extensions don't include Vary headers - those are site-wide only.
+
+**YAML config** (on `SilverStripe\CMS\Model\SiteTree`): `enable_cache_inheritance` (default `false`) and `draft_cache_max_age` (default `10`).
 
 ### Cache Header Generation Logic
 
@@ -232,11 +241,19 @@ SilverStripe\SiteConfig\SiteConfig:
 SilverStripe\CMS\Model\SiteTree:
   extensions:
     - Edwilde\CacheControl\Extensions\CacheControlPageExtension
+  enable_cache_inheritance: false
+  draft_cache_max_age: 10
 
-# Apply controller extension to set cache headers via nswdpc middleware
+# Apply controller extensions to set cache headers via nswdpc middleware
 SilverStripe\CMS\Controllers\ContentController:
   extensions:
     - Edwilde\CacheControl\Extensions\CacheControlContentControllerExtension
+    - Edwilde\CacheControl\Extensions\DevCacheBypassExtension
+
+# Clear the framework default Vary so the CMS checkboxes are the only source of Vary values
+SilverStripe\Control\Middleware\HTTPCacheControlMiddleware:
+  defaultVary:
+    'X-Forwarded-Protocol': false
 ```
 
 ### Common Development Tasks
@@ -255,16 +272,19 @@ SilverStripe\CMS\Controllers\ContentController:
        ->displayIf('EnableCacheControl')->isChecked()->end()
    ```
 
-3. Update `CacheControlContentControllerExtension` to apply the directive via nswdpc middleware:
+3. Update `CacheControlContentControllerExtension` to apply the directive in both `applyPageSettings()` and `applySiteSettings()`:
    ```php
    if ($config->EnableNewDirective) {
        $middleware->setNewDirective(true);
    }
    ```
+   If the directive is not in `HTTPCacheControlMiddleware::$allowed_directives`, append it via YAML first; `setStateDirective()` throws for unknown names.
 
-4. Add integration tests in `tests/Extensions/` to verify behaviour
+4. Update the editor-facing preview builders `CacheControlSiteConfigExtension::getCacheControlHeader()` and `CacheControlPageExtension::getPageCacheControlHeader()` so the CMS shows what is actually emitted
 
-5. Run dev/build: `vendor/bin/sake dev/build flush=1`
+5. Add integration tests in `tests/Extensions/` to verify behaviour
+
+6. Run dev/build: `vendor/bin/sake dev/build flush=1`
 
 **Debugging Cache Headers**:
 
@@ -351,7 +371,7 @@ Following Semantic Versioning (semver):
 - **MINOR**: New features (backwards compatible)
 - **PATCH**: Bug fixes
 
-Current version: `1.0.0`
+Current version: see `git tag --sort=-v:refname | head -1` (2.x on `main`, 1.x on `cms5`).
 
 ## CI/CD
 
@@ -388,9 +408,8 @@ php -l src/**/*.php  # Check syntax
 - Verify DisplayLogic module is installed
 
 **Tests failing**:
-- Ensure you're in a SilverStripe project for integration tests
-- Unit tests should work standalone
-- Check database configuration for integration tests
+- All tests are `SapphireTest` integration tests and need a Silverstripe environment with a database
+- Controller tests reset `HTTPCacheControlMiddleware` to production-like defaults in `setUp()`; dev-mode config otherwise disables caching and masks failures
 
 **Page override not working**:
 - Verify `OverrideCacheControl` checkbox is enabled
@@ -443,7 +462,7 @@ BSD-3-Clause
 
 ## Maintainer
 
-Ed Wilde <ed@example.com>
+Ed Wilde (https://github.com/edwilde)
 
 ---
 

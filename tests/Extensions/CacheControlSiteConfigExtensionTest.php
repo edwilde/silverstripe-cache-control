@@ -3,6 +3,7 @@
 namespace Edwilde\CacheControl\Tests\Extensions;
 
 use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
+use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\SiteConfig\SiteConfig;
 
@@ -28,6 +29,10 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $this->assertNotNull($fields->dataFieldByName('MaxAgePreset'));
         $this->assertNotNull($fields->dataFieldByName('MaxAge'));
         $this->assertNotNull($fields->dataFieldByName('EnableMustRevalidate'));
+        $this->assertNotNull($fields->dataFieldByName('StaleWhileRevalidatePreset'));
+        $this->assertNotNull($fields->dataFieldByName('StaleWhileRevalidate'));
+        $this->assertNotNull($fields->dataFieldByName('StaleIfErrorPreset'));
+        $this->assertNotNull($fields->dataFieldByName('StaleIfError'));
     }
 
     public function testDefaultValues()
@@ -36,6 +41,10 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
 
         $this->assertFalse((bool)$siteConfig->EnableCacheControl, 'Cache control should be disabled by default');
         $this->assertEquals(120, $siteConfig->MaxAge, 'Default max-age should be 120 seconds');
+        $this->assertEquals('0', $siteConfig->StaleWhileRevalidatePreset, 'Refresh grace period should default to off');
+        $this->assertEquals(0, $siteConfig->StaleWhileRevalidate);
+        $this->assertEquals('0', $siteConfig->StaleIfErrorPreset, 'Error grace period should default to off');
+        $this->assertEquals(0, $siteConfig->StaleIfError);
     }
 
     public function testGetCacheControlHeaderWhenDisabled()
@@ -215,5 +224,122 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
     {
         $siteConfig = SiteConfig::current_site_config();
         $this->assertTrue((bool)$siteConfig->EnableDraftCacheReduction, 'Draft cache reduction should be enabled by default');
+    }
+
+    public function testGetCacheControlHeaderWithStaleWhileRevalidate()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = true;
+        $siteConfig->StaleWhileRevalidatePreset = '86400';
+        $siteConfig->write();
+
+        $this->assertEquals(
+            'public, max-age=120, stale-while-revalidate=86400',
+            $siteConfig->getCacheControlHeader(),
+            'A grace period should replace must-revalidate, which forbids serving stale content'
+        );
+    }
+
+    public function testGetCacheControlHeaderWithBothStaleDirectives()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->StaleWhileRevalidatePreset = '7776000';
+        $siteConfig->StaleIfErrorPreset = '604800';
+        $siteConfig->write();
+
+        $this->assertEquals(
+            'public, max-age=120, stale-while-revalidate=7776000, stale-if-error=604800',
+            $siteConfig->getCacheControlHeader()
+        );
+    }
+
+    public function testStaleCustomValueUsed()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->StaleWhileRevalidatePreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleWhileRevalidate = 43200;
+        $siteConfig->write();
+
+        $this->assertEquals(
+            'public, max-age=120, stale-while-revalidate=43200',
+            $siteConfig->getCacheControlHeader()
+        );
+    }
+
+    public function testStaleCustomBelowOneIsOff()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = true;
+        $siteConfig->StaleWhileRevalidatePreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleWhileRevalidate = 0;
+
+        $this->assertEquals(
+            'public, max-age=120, must-revalidate',
+            $siteConfig->getCacheControlHeader(),
+            'An unusable custom value turns the grace period off, restoring must-revalidate'
+        );
+    }
+
+    public function testStaleDirectivesOmittedWithNoStore()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'nostore';
+        $siteConfig->StaleWhileRevalidatePreset = '86400';
+        $siteConfig->write();
+
+        $this->assertEquals('no-store', $siteConfig->getCacheControlHeader());
+    }
+
+    public function testValidationRejectsZeroCustomStaleWhileRevalidate()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->StaleWhileRevalidatePreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleWhileRevalidate = 0;
+
+        $this->assertFalse($siteConfig->validate()->isValid());
+    }
+
+    public function testValidationRejectsZeroCustomStaleIfError()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleIfError = 0;
+
+        $this->assertFalse($siteConfig->validate()->isValid());
+    }
+
+    public function testValidationPassesForPositiveCustomStaleValues()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->StaleWhileRevalidatePreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleWhileRevalidate = 3600;
+        $siteConfig->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleIfError = 60;
+
+        $this->assertTrue($siteConfig->validate()->isValid());
     }
 }

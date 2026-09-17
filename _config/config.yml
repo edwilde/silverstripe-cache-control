@@ -37,6 +37,11 @@ SilverStripe\CMS\Controllers\ContentController:
 SilverStripe\Control\Middleware\HTTPCacheControlMiddleware:
   defaultVary:
     'X-Forwarded-Protocol': false
+  # setStateDirective() rejects any name absent from this list, which merges additively with
+  # the framework's built-in directives.
+  allowed_directives:
+    - 'stale-while-revalidate'
+    - 'stale-if-error'
 
 # Use nswdpc's middleware and configuration
 # By default, caching is disabled (state: 'enabled' with no directives set)

@@ -82,7 +82,11 @@ src/
 'CacheDuration' => 'Enum("maxage,nostore","maxage")'  // Duration strategy (default: maxage)
 'MaxAge' => 'Int'                                      // Custom cache duration in seconds (default: 120)
 'MaxAgePreset' => 'Enum(...,"120")'                    // Preset durations: 120, 300, 600, 3600, 86400, custom
-'EnableMustRevalidate' => 'Boolean'                    // Force revalidation (default: true, recommended)
+'EnableMustRevalidate' => 'Boolean'                    // Force revalidation (default: true; dropped when a grace period is set)
+'StaleWhileRevalidatePreset' => 'Enum(...,"0")'        // Refresh grace period: 0 (off), 3600, 86400, 604800, 2592000, 7776000, custom
+'StaleWhileRevalidate' => 'Int'                        // Custom refresh grace period in seconds (default: 0)
+'StaleIfErrorPreset' => 'Enum(...,"0")'                // Error grace period, same presets (default: 0)
+'StaleIfError' => 'Int'                                // Custom error grace period in seconds (default: 0)
 'VaryAcceptEncoding' => 'Boolean'                      // Vary: Accept-Encoding (default: true)
 'VaryXForwardedProtocol' => 'Boolean'                  // Vary: X-Forwarded-Protocol (default: false)
 'VaryCookie' => 'Boolean'                              // Vary: Cookie (default: false)
@@ -90,7 +94,7 @@ src/
 'EnableDraftCacheReduction' => 'Boolean'               // Shorten max-age on pages with unpublished changes (default: true)
 ```
 
-**SiteTree Table Extensions** (cache type/duration/max-age/must-revalidate fields as SiteConfig, plus):
+**SiteTree Table Extensions** (cache type/duration/max-age/must-revalidate/grace-period fields as SiteConfig, plus):
 ```php
 'OverrideCacheControl' => 'Boolean'                    // Enable page-specific override (default: false)
 'ApplyCacheToChildren' => 'Boolean'                    // Descendants inherit this page's settings (default: false; needs enable_cache_inheritance)
@@ -121,6 +125,13 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
 - `"public, max-age=120"`
 - `"private, max-age=3600, must-revalidate"`
 - `"no-store"` (ignores all other settings)
+
+**Directive rules worth knowing**:
+- `HTTPCacheControlMiddleware::$allowed_directives` is a `@config` list. `setStateDirective()` throws for any name not in it, so a new directive (e.g. `stale-while-revalidate`, `stale-if-error`) must first be appended to that list in `_config/config.yml`. The framework's own docblock names this as the extension point.
+- `must-revalidate` and the RFC 5861 stale directives are mutually exclusive in effect: `must-revalidate` forbids reusing a stale response without revalidation, so a header carrying both has no grace period. Whenever a stale directive is emitted, `must-revalidate` must be omitted, in both the controller emission and the CMS header preview.
+- The middleware's built-in `stateDirectives` table sets `must-revalidate => true` on every cacheable state, so omitting it means calling `setMustRevalidate(false)`, not just declining to call `setMustRevalidate(true)`.
+- `setStateDirective()` removes a directive only for the value `false`. An integer `0` is stored and rendered as `name=0`, so a grace period of zero must be passed as `false`.
+- `Edwilde\CacheControl\StaleDirectives` resolves the preset/custom pairs for both grace directives and is the single source used by the SiteConfig preview, the Page preview and the controller.
 
 ### HTTP Headers Applied
 

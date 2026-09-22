@@ -56,7 +56,7 @@ Navigate to **Settings > Cache Control** in the CMS to configure default cache h
 - **Cache Duration**: Choose between Max Age (time-based caching) or No Store (no caching)
 - **Max Age Duration**: Select from common preset durations (2 min, 5 min, 10 min, 1 hour, 1 day) or choose Custom
 - **Custom Max Age**: When "Custom" is selected, enter your own cache duration in seconds
-- **Enable Must Revalidate**: Force validation when cache expires (recommended)
+- **Enable Must Revalidate**: Force validation when cache expires. Omitted, and hidden in the CMS, whenever a grace period is set
 
 ### Vary Header Settings
 
@@ -100,6 +100,9 @@ Once enabled:
 5. Save
 
 All descendant pages that don't have their own cache override will now use the parent's cache settings. The Cache Control tab on each child page will show the inherited source (e.g., "inherited from Archive").
+
+Descendants inherit the cache type, the cache duration, max age, must-revalidate, and both grace
+periods. Vary headers are site-wide and never inherit from a page.
 
 **How inheritance resolves:**
 
@@ -172,6 +175,14 @@ page's own Cache Control tab.
 A 90-day refresh grace period is the aggressive variant. It only makes sense with a CDN purge on
 publish, which this module does not provide — without one, a low-traffic page can serve its
 previous copy to the first visitor after a publish.
+
+> [!WARNING]
+> While the origin is returning errors, `stale-if-error` keeps the CDN serving the last public
+> copy even after the page is unpublished or its viewing permissions are tightened. That copy stays
+> in service until the error grace period runs out or the CDN is purged.
+
+With a `private` cache type, CDNs ignore both grace periods. Only the visitor's browser applies
+them, and most browsers ignore `stale-if-error`.
 
 Draft cache reduction lowers `max-age` but leaves the grace periods untouched, so a page with
 unpublished changes revalidates every 10 seconds while the CDN continues to answer instantly

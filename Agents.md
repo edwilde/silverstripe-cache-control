@@ -131,7 +131,7 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
 - `must-revalidate` and the RFC 5861 stale directives are mutually exclusive in effect: `must-revalidate` forbids reusing a stale response without revalidation, so a header carrying both has no grace period. Whenever a stale directive is emitted, `must-revalidate` must be omitted, in both the controller emission and the CMS header preview.
 - The middleware's built-in `stateDirectives` table sets `must-revalidate => true` on every cacheable state, so omitting it means calling `setMustRevalidate(false)`, not just declining to call `setMustRevalidate(true)`.
 - `setStateDirective()` removes a directive only for the value `false`. An integer `0` is stored and rendered as `name=0`, so a grace period of zero must be passed as `false`.
-- `Edwilde\CacheControl\StaleDirectives` resolves the preset/custom pairs for both grace directives and is the single source used by the SiteConfig preview, the Page preview and the controller.
+- `Edwilde\CacheControl\StaleDirectives` resolves the preset/custom pairs for both grace directives and is the single source used by the SiteConfig preview, the Page preview and the controller. It also owns the custom-value range check (`validate()`, 1 second to `MAX_SECONDS`) and the editor explainer (`infoField()`) that both extensions share.
 
 ### HTTP Headers Applied
 

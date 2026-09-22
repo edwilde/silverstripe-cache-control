@@ -12,6 +12,9 @@
 
 namespace Edwilde\CacheControl;
 
+use SilverStripe\Core\Validation\ValidationResult;
+use SilverStripe\Forms\LiteralField;
+
 /**
  * Resolves the configured grace periods into directive values.
  *
@@ -36,18 +39,25 @@ final class StaleDirectives
     public const PRESET_ENUM = 'Enum("0,3600,86400,604800,2592000,7776000,custom","0")';
 
     /**
+     * The largest grace period a custom value may set, in seconds (one year).
+     */
+    public const MAX_SECONDS = 31536000;
+
+    /**
      * Directive name to the preset/custom field pair that configures it.
      *
-     * @var array<string, array{preset: string, custom: string}>
+     * @var array<string, array{preset: string, custom: string, label: string}>
      */
     private const FIELDS = [
         'stale-while-revalidate' => [
             'preset' => 'StaleWhileRevalidatePreset',
             'custom' => 'StaleWhileRevalidate',
+            'label' => 'refresh grace period',
         ],
         'stale-if-error' => [
             'preset' => 'StaleIfErrorPreset',
             'custom' => 'StaleIfError',
+            'label' => 'error grace period',
         ],
     ];
 
@@ -126,5 +136,53 @@ final class StaleDirectives
     public static function hasGracePeriod($source): bool
     {
         return self::forSource($source) !== [];
+    }
+
+    /**
+     * Add a field error for each custom grace period outside 1 second to MAX_SECONDS.
+     *
+     * @param object $source The object carrying the preset/custom fields
+     * @param ValidationResult $result The result to add field errors to
+     * @return void
+     */
+    public static function validate($source, ValidationResult $result): void
+    {
+        foreach (self::FIELDS as $fields) {
+            if ((string)$source->{$fields['preset']} !== self::PRESET_CUSTOM) {
+                continue;
+            }
+
+            $seconds = (int)$source->{$fields['custom']};
+
+            if ($seconds < 1) {
+                $result->addFieldError($fields['custom'], "Custom {$fields['label']} must be at least 1 second.");
+            } elseif ($seconds > self::MAX_SECONDS) {
+                $result->addFieldError(
+                    $fields['custom'],
+                    "Custom {$fields['label']} must be no more than " . self::MAX_SECONDS . ' seconds (one year).'
+                );
+            }
+        }
+    }
+
+    /**
+     * The explainer shown to editors above the grace-period fields.
+     *
+     * @param string $name The form field name, unique within the CMS form
+     * @return LiteralField
+     */
+    public static function infoField(string $name): LiteralField
+    {
+        return LiteralField::create($name,
+            '<p class="message notice">Grace periods let a CDN keep serving its stored copy after the max age runs out. '
+            . 'The <strong>refresh grace period</strong> serves that copy instantly while fetching a fresh one in the '
+            . 'background, so no visitor waits for the page to be rebuilt. The <strong>error grace period</strong> keeps '
+            . 'the copy in service while the server is returning errors. Both pair with a short max age.</p>'
+            . '<p class="message notice">With a <strong>private</strong> cache type, CDNs ignore both grace periods: '
+            . 'only the visitor\'s browser applies them, and most browsers ignore the error grace period.</p>'
+            . '<p class="message warning">While the server is returning errors, the error grace period keeps the old '
+            . 'copy in service even after this page is unpublished or its viewing permissions are tightened, until the '
+            . 'grace period runs out or the CDN is purged.</p>'
+        );
     }
 }

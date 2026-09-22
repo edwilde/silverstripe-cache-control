@@ -144,12 +144,7 @@ class CacheControlSiteConfigExtension extends Extension
             ->setDescription('Enter a custom cache duration in seconds.')
             ->setAttribute('placeholder', '120');
 
-        $staleInfoField = LiteralField::create('StaleDirectivesInfo',
-            '<p class="message notice">Grace periods let a CDN keep serving its stored copy after the max age runs out. '
-            . 'The <strong>refresh grace period</strong> serves that copy instantly while fetching a fresh one in the '
-            . 'background, so no visitor waits for the page to be rebuilt. The <strong>error grace period</strong> keeps '
-            . 'the copy in service while the server is returning errors. Both pair with a short max age.</p>'
-        );
+        $staleInfoField = StaleDirectives::infoField('StaleDirectivesInfo');
 
         $staleWhileRevalidatePresetField = DropdownField::create(
             'StaleWhileRevalidatePreset',
@@ -158,7 +153,7 @@ class CacheControlSiteConfigExtension extends Extension
         )->setDescription('How long caches may serve the expired copy while fetching a fresh one in the background.');
 
         $staleWhileRevalidateField = NumericField::create('StaleWhileRevalidate', 'Custom Refresh Grace Period (seconds)')
-            ->setDescription('Enter a custom refresh grace period in seconds.')
+            ->setDescription('Enter a custom refresh grace period in seconds, up to one year (31536000).')
             ->setAttribute('placeholder', '86400');
 
         $staleIfErrorPresetField = DropdownField::create(
@@ -168,7 +163,7 @@ class CacheControlSiteConfigExtension extends Extension
         )->setDescription('How long caches may keep serving the stored copy while the server returns errors.');
 
         $staleIfErrorField = NumericField::create('StaleIfError', 'Custom Error Grace Period (seconds)')
-            ->setDescription('Enter a custom error grace period in seconds.')
+            ->setDescription('Enter a custom error grace period in seconds, up to one year (31536000).')
             ->setAttribute('placeholder', '604800');
 
         $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
@@ -404,16 +399,6 @@ class CacheControlSiteConfigExtension extends Extension
             $result->addFieldError('MaxAge', 'Custom max age must be at least 1 second.');
         }
 
-        if ($this->owner->StaleWhileRevalidatePreset === StaleDirectives::PRESET_CUSTOM
-            && (int)$this->owner->StaleWhileRevalidate < 1
-        ) {
-            $result->addFieldError('StaleWhileRevalidate', 'Custom refresh grace period must be at least 1 second.');
-        }
-
-        if ($this->owner->StaleIfErrorPreset === StaleDirectives::PRESET_CUSTOM
-            && (int)$this->owner->StaleIfError < 1
-        ) {
-            $result->addFieldError('StaleIfError', 'Custom error grace period must be at least 1 second.');
-        }
+        StaleDirectives::validate($this->owner, $result);
     }
 }

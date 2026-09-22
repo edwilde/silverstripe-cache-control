@@ -330,6 +330,41 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $this->assertFalse($siteConfig->validate()->isValid());
     }
 
+    public function testValidationRejectsCustomStaleWhileRevalidateAboveOneYear()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->StaleWhileRevalidatePreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleWhileRevalidate = StaleDirectives::MAX_SECONDS + 1;
+
+        $this->assertFalse($siteConfig->validate()->isValid());
+    }
+
+    public function testValidationRejectsCustomStaleIfErrorAboveOneYear()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleIfError = StaleDirectives::MAX_SECONDS + 1;
+
+        $this->assertFalse($siteConfig->validate()->isValid());
+    }
+
+    public function testValidationPassesForCustomStaleValuesAtOneYear()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->StaleWhileRevalidatePreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleWhileRevalidate = StaleDirectives::MAX_SECONDS;
+        $siteConfig->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $siteConfig->StaleIfError = StaleDirectives::MAX_SECONDS;
+
+        $this->assertTrue($siteConfig->validate()->isValid());
+    }
+
     public function testValidationPassesForPositiveCustomStaleValues()
     {
         $siteConfig = SiteConfig::current_site_config();

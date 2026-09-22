@@ -815,6 +815,42 @@ class CacheControlPageExtensionTest extends SapphireTest
         $this->assertTrue($page->validate()->isValid());
     }
 
+    public function testPageValidationRejectsCustomStaleWhileRevalidateAboveOneYear()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->StaleWhileRevalidatePreset = StaleDirectives::PRESET_CUSTOM;
+        $page->StaleWhileRevalidate = StaleDirectives::MAX_SECONDS + 1;
+
+        $this->assertFalse($page->validate()->isValid());
+    }
+
+    public function testPageValidationRejectsCustomStaleIfErrorAboveOneYear()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $page->StaleIfError = StaleDirectives::MAX_SECONDS + 1;
+
+        $this->assertFalse($page->validate()->isValid());
+    }
+
+    public function testPageValidationPassesForCustomStaleValueAtOneYear()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $page->StaleIfError = StaleDirectives::MAX_SECONDS;
+
+        $this->assertTrue($page->validate()->isValid());
+    }
+
     public function testPageFieldsPrefillFromSiteConfigStaleValues()
     {
         $siteConfig = SiteConfig::current_site_config();

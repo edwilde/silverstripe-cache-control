@@ -92,9 +92,9 @@ class CacheControlPageExtension extends Extension
         'MaxAge' => 'Int',
         'MaxAgePreset' => 'Enum("120,300,600,3600,86400,custom","120")',
         'EnableMustRevalidate' => 'Boolean',
-        'StaleWhileRevalidatePreset' => StaleDirectives::PRESET_ENUM,
+        'StaleWhileRevalidatePreset' => StaleDirectives::REFRESH_PRESET_ENUM,
         'StaleWhileRevalidate' => 'Int',
-        'StaleIfErrorPreset' => StaleDirectives::PRESET_ENUM,
+        'StaleIfErrorPreset' => StaleDirectives::ERROR_PRESET_ENUM,
         'StaleIfError' => 'Int',
         'ApplyCacheToChildren' => 'Boolean',
         'HasPendingDraftChanges' => 'Boolean',
@@ -228,7 +228,7 @@ class CacheControlPageExtension extends Extension
         $staleWhileRevalidatePresetField = DropdownField::create(
             'StaleWhileRevalidatePreset',
             'Refresh Grace Period',
-            StaleDirectives::presetOptions()
+            StaleDirectives::refreshPresetOptions()
         )->setDescription('How long caches may serve the expired copy while fetching a fresh one in the background.');
         $staleWhileRevalidateField = NumericField::create('StaleWhileRevalidate', 'Custom Refresh Grace Period (seconds)')
             ->setDescription('Enter a custom refresh grace period in seconds, up to one year (31536000).')
@@ -236,7 +236,7 @@ class CacheControlPageExtension extends Extension
         $staleIfErrorPresetField = DropdownField::create(
             'StaleIfErrorPreset',
             'Error Grace Period',
-            StaleDirectives::presetOptions()
+            StaleDirectives::errorPresetOptions()
         )->setDescription('How long caches may keep serving the stored copy while the server returns errors.');
         $staleIfErrorField = NumericField::create('StaleIfError', 'Custom Error Grace Period (seconds)')
             ->setDescription('Enter a custom error grace period in seconds, up to one year (31536000).')

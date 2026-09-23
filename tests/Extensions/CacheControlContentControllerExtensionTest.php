@@ -602,14 +602,14 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
         $page->CacheDuration = 'maxage';
         $page->MaxAgePreset = '120';
         $page->EnableMustRevalidate = true;
-        $page->StaleWhileRevalidatePreset = '7776000';
+        $page->StaleWhileRevalidatePreset = '21600';
         $page->StaleIfErrorPreset = '604800';
         $page->write();
 
         ContentController::create($page)->doInit();
         $middleware = $this->getMiddleware();
 
-        $this->assertEquals(7776000, $middleware->getDirective('stale-while-revalidate'));
+        $this->assertEquals(21600, $middleware->getDirective('stale-while-revalidate'));
         $this->assertEquals(604800, $middleware->getDirective('stale-if-error'));
         $this->assertFalse($middleware->getDirective('must-revalidate'));
     }

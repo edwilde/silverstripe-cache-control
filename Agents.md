@@ -83,9 +83,9 @@ src/
 'MaxAge' => 'Int'                                      // Custom cache duration in seconds (default: 120)
 'MaxAgePreset' => 'Enum(...,"120")'                    // Preset durations: 120, 300, 600, 3600, 86400, custom
 'EnableMustRevalidate' => 'Boolean'                    // Force revalidation (default: true; dropped when a grace period is set)
-'StaleWhileRevalidatePreset' => 'Enum(...,"0")'        // Refresh grace period: 0 (off), 3600, 86400, 604800, 2592000, 7776000, custom
+'StaleWhileRevalidatePreset' => 'Enum(...,"0")'        // Refresh grace period: 0 (off), 300, 3600, 21600, 86400, 604800, custom
 'StaleWhileRevalidate' => 'Int'                        // Custom refresh grace period in seconds (default: 0)
-'StaleIfErrorPreset' => 'Enum(...,"0")'                // Error grace period, same presets (default: 0)
+'StaleIfErrorPreset' => 'Enum(...,"0")'                // Error grace period: 0 (off), 3600, 86400, 604800, 2592000, custom
 'StaleIfError' => 'Int'                                // Custom error grace period in seconds (default: 0)
 'VaryAcceptEncoding' => 'Boolean'                      // Vary: Accept-Encoding (default: true)
 'VaryXForwardedProtocol' => 'Boolean'                  // Vary: X-Forwarded-Protocol (default: false)

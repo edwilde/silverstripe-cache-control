@@ -56,9 +56,9 @@ Navigate to **Settings > Cache Control** in the CMS to configure default cache h
 - **Cache Duration**: Choose between Max Age (time-based caching) or No Store (no caching)
 - **Max Age Duration**: Select from common preset durations (2 min, 5 min, 10 min, 1 hour, 1 day) or choose Custom
 - **Custom Max Age**: When "Custom" is selected, enter your own cache duration in seconds
-- **Refresh Grace Period** (`stale-while-revalidate`): How long a CDN may serve the expired copy while fetching a fresh one in the background. Off by default, with presets from 1 hour to 90 days or Custom
+- **Refresh Grace Period** (`stale-while-revalidate`): How long a CDN may serve the expired copy while fetching a fresh one in the background. Off by default, with presets from 5 minutes to 7 days or Custom
 - **Custom Refresh Grace Period**: When "Custom" is selected, enter your own value in seconds, up to one year
-- **Error Grace Period** (`stale-if-error`): How long a CDN may keep serving the stored copy while the server returns errors. Same presets, off by default
+- **Error Grace Period** (`stale-if-error`): How long a CDN may keep serving the stored copy while the server returns errors. Off by default, with presets from 1 hour to 30 days or Custom
 - **Custom Error Grace Period**: When "Custom" is selected, enter your own value in seconds, up to one year
 - **Enable Must Revalidate**: Force validation when cache expires. Omitted, and hidden in the CMS, whenever a grace period is set
 
@@ -155,13 +155,13 @@ holding every visitor while PHP rebuilds the page. Two directives control this, 
 The recommended starting recipe pairs a short max age with a long grace period:
 
 ```
-Cache-Control: public, max-age=120, stale-while-revalidate=86400, stale-if-error=604800
+Cache-Control: public, max-age=120, stale-while-revalidate=3600, stale-if-error=604800
 ```
 
 - **`max-age=120`** collapses traffic spikes. Every visitor in the same two minutes is served
   from one PHP render.
-- **`stale-while-revalidate=86400`** lets the CDN serve the expired copy instantly for up to a
-  day while it fetches a fresh one in the background. No visitor waits for the origin, and a
+- **`stale-while-revalidate=3600`** lets the CDN serve the expired copy instantly for up to an
+  hour while it fetches a fresh one in the background. No visitor waits for the origin, and a
   stampede at expiry becomes a single request.
 - **`stale-if-error=604800`** tells the CDN to discard a 5xx or a timeout and keep serving the
   last good copy for up to a week. Without it, `stale-while-revalidate` will cache an error page
@@ -176,9 +176,9 @@ page's own Cache Control tab.
 > revalidating, which is exactly what a grace period asks a cache to do, so a header carrying
 > both has no grace period at all.
 
-A 90-day refresh grace period is the aggressive variant. It only makes sense with a CDN purge on
-publish, which this module does not provide — without one, a low-traffic page can serve its
-previous copy to the first visitor after a publish.
+A refresh grace period of a day or more is the aggressive variant. It only makes sense with a CDN
+purge on publish, which this module does not provide — without one, a low-traffic page can serve
+its previous copy to the first visitor after a publish.
 
 > [!WARNING]
 > While the origin is returning errors, `stale-if-error` keeps the CDN serving the last public
@@ -212,10 +212,10 @@ Specifies how long (in seconds) the content can be cached before it must be reva
 - **Custom** - Enter your own value in seconds for specific requirements
 
 ### Stale While Revalidate (Refresh Grace Period)
-How long a cache may serve its expired copy while fetching a fresh one in the background. Presets run from 1 hour to 90 days, plus a custom value in seconds. Off by default.
+How long a cache may serve its expired copy while fetching a fresh one in the background. Presets run from 5 minutes to 7 days, plus a custom value in seconds. Off by default.
 
 ### Stale If Error (Error Grace Period)
-How long a cache may keep serving its stored copy while the origin returns errors or times out. Same presets. Off by default.
+How long a cache may keep serving its stored copy while the origin returns errors or times out. Presets run from 1 hour to 30 days, plus a custom value in seconds. Off by default.
 
 ### Must Revalidate
 Forces browsers to check with the server when the cache expires, rather than serving potentially stale content. Enabled by default. It is omitted from the header, and hidden in the CMS, whenever a grace period is set.
@@ -238,7 +238,7 @@ The module consists of three main components:
 The module sets the following HTTP headers:
 
 - **Cache-Control**: The primary caching directive (e.g., `public, max-age=300`, or
-  `public, max-age=120, stale-while-revalidate=86400, stale-if-error=604800` with grace periods set)
+  `public, max-age=120, stale-while-revalidate=3600, stale-if-error=604800` with grace periods set)
 - **Expires**: Automatically set to match the Cache-Control max-age for HTTP/1.0 compatibility
 
 When max-age is specified, the Expires header is calculated as the current time plus the max-age value in GMT format. This ensures compatibility with older HTTP/1.0 caches and proxies while maintaining full HTTP/1.1 Cache-Control support.
@@ -313,7 +313,7 @@ curl -sI "https://yoursite.local/page-with-grace-period" | grep -i cache-control
 ```
 
 ```
-cache-control: public, max-age=120, stale-while-revalidate=86400, stale-if-error=604800
+cache-control: public, max-age=120, stale-while-revalidate=3600, stale-if-error=604800
 ```
 
 > [!TIP]

@@ -251,12 +251,12 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $siteConfig->CacheType = 'public';
         $siteConfig->CacheDuration = 'maxage';
         $siteConfig->MaxAgePreset = '120';
-        $siteConfig->StaleWhileRevalidatePreset = '7776000';
+        $siteConfig->StaleWhileRevalidatePreset = '21600';
         $siteConfig->StaleIfErrorPreset = '604800';
         $siteConfig->write();
 
         $this->assertEquals(
-            'public, max-age=120, stale-while-revalidate=7776000, stale-if-error=604800',
+            'public, max-age=120, stale-while-revalidate=21600, stale-if-error=604800',
             $siteConfig->getCacheControlHeader()
         );
     }

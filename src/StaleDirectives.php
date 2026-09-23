@@ -35,9 +35,14 @@ final class StaleDirectives
     public const PRESET_CUSTOM = 'custom';
 
     /**
-     * Enum spec for both preset fields, defaulting to off.
+     * Enum spec for the refresh grace-period preset (stale-while-revalidate), defaulting to off.
      */
-    public const PRESET_ENUM = 'Enum("0,3600,86400,604800,2592000,7776000,custom","0")';
+    public const REFRESH_PRESET_ENUM = 'Enum("0,300,3600,21600,86400,604800,custom","0")';
+
+    /**
+     * Enum spec for the error grace-period preset (stale-if-error), defaulting to off.
+     */
+    public const ERROR_PRESET_ENUM = 'Enum("0,3600,86400,604800,2592000,custom","0")';
 
     /**
      * The largest grace period a custom value may set, in seconds (one year).
@@ -63,11 +68,29 @@ final class StaleDirectives
     ];
 
     /**
-     * Dropdown options for a grace-period preset field.
+     * Dropdown options for the refresh grace-period preset, in minutes to days.
      *
      * @return array<string, string>
      */
-    public static function presetOptions(): array
+    public static function refreshPresetOptions(): array
+    {
+        return [
+            self::PRESET_OFF => 'Off - no grace period',
+            '300' => '5 minutes (300 seconds)',
+            '3600' => '1 hour (3600 seconds)',
+            '21600' => '6 hours (21600 seconds)',
+            '86400' => '1 day (86400 seconds)',
+            '604800' => '7 days (604800 seconds)',
+            self::PRESET_CUSTOM => 'Custom (specify in seconds)',
+        ];
+    }
+
+    /**
+     * Dropdown options for the error grace-period preset, in hours to weeks.
+     *
+     * @return array<string, string>
+     */
+    public static function errorPresetOptions(): array
     {
         return [
             self::PRESET_OFF => 'Off - no grace period',
@@ -75,7 +98,6 @@ final class StaleDirectives
             '86400' => '1 day (86400 seconds)',
             '604800' => '7 days (604800 seconds)',
             '2592000' => '30 days (2592000 seconds)',
-            '7776000' => '90 days (7776000 seconds)',
             self::PRESET_CUSTOM => 'Custom (specify in seconds)',
         ];
     }

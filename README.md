@@ -56,6 +56,10 @@ Navigate to **Settings > Cache Control** in the CMS to configure default cache h
 - **Cache Duration**: Choose between Max Age (time-based caching) or No Store (no caching)
 - **Max Age Duration**: Select from common preset durations (2 min, 5 min, 10 min, 1 hour, 1 day) or choose Custom
 - **Custom Max Age**: When "Custom" is selected, enter your own cache duration in seconds
+- **Refresh Grace Period** (`stale-while-revalidate`): How long a CDN may serve the expired copy while fetching a fresh one in the background. Off by default, with presets from 1 hour to 90 days or Custom
+- **Custom Refresh Grace Period**: When "Custom" is selected, enter your own value in seconds, up to one year
+- **Error Grace Period** (`stale-if-error`): How long a CDN may keep serving the stored copy while the server returns errors. Same presets, off by default
+- **Custom Error Grace Period**: When "Custom" is selected, enter your own value in seconds, up to one year
 - **Enable Must Revalidate**: Force validation when cache expires. Omitted, and hidden in the CMS, whenever a grace period is set
 
 ### Vary Header Settings
@@ -217,7 +221,7 @@ How long a cache may keep serving its stored copy while the origin returns error
 Forces browsers to check with the server when the cache expires, rather than serving potentially stale content. Enabled by default. It is omitted from the header, and hidden in the CMS, whenever a grace period is set.
 
 ### Cache Duration: No Store
-Completely prevents caching. Use for sensitive or rapidly changing content. When "No Store" is selected, all other caching options (max-age, must-revalidate) are ignored and the Cache-Control header will only contain "no-store".
+Completely prevents caching. Use for sensitive or rapidly changing content. When "No Store" is selected, all other caching options (max-age, grace periods, must-revalidate) are ignored and the Cache-Control header will only contain "no-store".
 
 ## Technical Details
 

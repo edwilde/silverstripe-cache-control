@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * Stale Directive Helper
  *
@@ -12,8 +14,10 @@
 
 namespace Edwilde\CacheControl;
 
+use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\Validation\ValidationResult;
 use SilverStripe\Forms\LiteralField;
+use SilverStripe\SiteConfig\SiteConfig;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 
 /**
@@ -107,11 +111,11 @@ final class StaleDirectives
      *
      * A custom value below 1 resolves to 0, turning the grace period off.
      *
-     * @param string|null $preset The preset value: seconds, "0" or "custom"
-     * @param mixed $customValue The paired Int field, read only when the preset is "custom"
+     * @param int|string|null $preset The preset value: seconds, "0" or "custom"
+     * @param int|string|null $customValue The paired Int field, read only when the preset is "custom"
      * @return int Seconds, or 0 when the directive should not be emitted
      */
-    public static function resolve($preset, $customValue): int
+    public static function resolve(int|string|null $preset, int|string|null $customValue): int
     {
         if ((string)$preset === self::PRESET_CUSTOM) {
             return (int)$customValue > 0 ? (int)$customValue : 0;
@@ -123,10 +127,10 @@ final class StaleDirectives
     /**
      * Resolve both grace periods from a SiteConfig or Page.
      *
-     * @param object $source The object carrying the preset/custom fields
+     * @param SiteConfig|SiteTree $source The object carrying the preset/custom fields
      * @return array<string, int> Directive name to seconds, including any resolving to 0
      */
-    public static function resolveAll($source): array
+    public static function resolveAll(SiteConfig|SiteTree $source): array
     {
         $resolved = [];
 
@@ -140,10 +144,10 @@ final class StaleDirectives
     /**
      * The grace periods that should appear in a Cache-Control header.
      *
-     * @param object $source The object carrying the preset/custom fields
+     * @param SiteConfig|SiteTree $source The object carrying the preset/custom fields
      * @return array<string, int> Directive name to seconds, omitting any resolving to 0
      */
-    public static function forSource($source): array
+    public static function forSource(SiteConfig|SiteTree $source): array
     {
         return array_filter(self::resolveAll($source));
     }
@@ -153,10 +157,10 @@ final class StaleDirectives
      *
      * must-revalidate is omitted from the header whenever this is true.
      *
-     * @param object $source The object carrying the preset/custom fields
+     * @param SiteConfig|SiteTree $source The object carrying the preset/custom fields
      * @return bool
      */
-    public static function hasGracePeriod($source): bool
+    public static function hasGracePeriod(SiteConfig|SiteTree $source): bool
     {
         return self::forSource($source) !== [];
     }
@@ -164,11 +168,11 @@ final class StaleDirectives
     /**
      * Add a field error for each custom grace period outside 1 second to MAX_SECONDS.
      *
-     * @param object $source The object carrying the preset/custom fields
+     * @param SiteConfig|SiteTree $source The object carrying the preset/custom fields
      * @param ValidationResult $result The result to add field errors to
      * @return void
      */
-    public static function validate($source, ValidationResult $result): void
+    public static function validate(SiteConfig|SiteTree $source, ValidationResult $result): void
     {
         foreach (self::FIELDS as $fields) {
             if ((string)$source->{$fields['preset']} !== self::PRESET_CUSTOM) {

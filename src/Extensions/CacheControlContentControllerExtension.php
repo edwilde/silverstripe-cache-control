@@ -213,7 +213,7 @@ class CacheControlContentControllerExtension extends Extension
      * @param SiteTree|SiteConfig $source The object supplying the cache settings
      * @return void
      */
-    protected function applyStaleDirectives($middleware, $source)
+    protected function applyStaleDirectives(HTTPCacheControlMiddleware $middleware, SiteConfig|SiteTree $source): void
     {
         $states = [
             HTTPCacheControlMiddleware::STATE_ENABLED,

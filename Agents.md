@@ -36,6 +36,7 @@
 
 ```
 src/
+├── StaleDirectives.php                            # Grace-period presets, resolution, validation and CMS notices
 └── Extensions/
     ├── CacheControlSiteConfigExtension.php       # Site-wide cache settings UI
     ├── CacheControlPageExtension.php             # Page-level override UI
@@ -63,6 +64,7 @@ src/
    - Set cache state (public/private or disabled)
    - Set cache duration (max-age or no-store)
    - Add Expires header to match max-age
+   - Apply `stale-while-revalidate` / `stale-if-error` (`applyStaleDirectives()`) and turn off `must-revalidate` when either is set
    - Apply Vary headers based on CMS configuration (always read from SiteConfig)
 5. **Draft cache reduction** (`applyDraftCacheReduction()`): if `EnableDraftCacheReduction` is on and the page's `HasPendingDraftChanges` flag is set, `max-age` and `Expires` drop to `draft_cache_max_age` (default 10s). The flag is written on save and cleared on publish, so this costs no extra query.
 6. **Middleware processes response** → nswdpc module applies configured headers, respecting:
@@ -118,12 +120,14 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
      - If `MaxAgePreset` is `'custom'`, use the `MaxAge` field value
      - Otherwise, use the preset value from `MaxAgePreset` (120, 300, 600, 3600, 86400)
      - Defaults to 120 if neither is set
-   - Add `must-revalidate` if `EnableMustRevalidate` is true
+   - Add `stale-while-revalidate={n}` and `stale-if-error={n}` for each grace period resolving above 0 (`StaleDirectives::forSource()`)
+   - Add `must-revalidate` if `EnableMustRevalidate` is true and no grace period is set
 4. **Join directives** with `, ` and return as string
 
 **Example outputs**:
 - `"public, max-age=120"`
 - `"private, max-age=3600, must-revalidate"`
+- `"public, max-age=120, stale-while-revalidate=3600, stale-if-error=604800"`
 - `"no-store"` (ignores all other settings)
 
 **Directive rules worth knowing**:

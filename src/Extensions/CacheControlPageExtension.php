@@ -335,6 +335,7 @@ class CacheControlPageExtension extends Extension
                 $maxAgePresetField,
                 $maxAgeField,
                 $staleInfoField,
+                StaleDirectives::privateNoticeField('PageStaleDirectivesPrivateNotice'),
                 $staleWhileRevalidatePresetField,
                 $staleWhileRevalidateField,
                 $staleIfErrorPresetField,

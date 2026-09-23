@@ -226,6 +226,7 @@ class CacheControlSiteConfigExtension extends Extension
                 $maxAgePresetField,
                 $maxAgeField,
                 $staleInfoField,
+                StaleDirectives::privateNoticeField('StaleDirectivesPrivateNotice'),
                 $staleWhileRevalidatePresetField,
                 $staleWhileRevalidateField,
                 $staleIfErrorPresetField,

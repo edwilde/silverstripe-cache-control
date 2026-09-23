@@ -14,6 +14,7 @@ namespace Edwilde\CacheControl;
 
 use SilverStripe\Core\Validation\ValidationResult;
 use SilverStripe\Forms\LiteralField;
+use UncleCheese\DisplayLogic\Forms\Wrapper;
 
 /**
  * Resolves the configured grace periods into directive values.
@@ -178,11 +179,25 @@ final class StaleDirectives
             . 'The <strong>refresh grace period</strong> serves that copy instantly while fetching a fresh one in the '
             . 'background, so no visitor waits for the page to be rebuilt. The <strong>error grace period</strong> keeps '
             . 'the copy in service while the server is returning errors. Both pair with a short max age.</p>'
-            . '<p class="message notice">With a <strong>private</strong> cache type, CDNs ignore both grace periods: '
-            . 'only the visitor\'s browser applies them, and most browsers ignore the error grace period.</p>'
-            . '<p class="message warning">While the server is returning errors, the error grace period keeps the old '
-            . 'copy in service even after this page is unpublished or its viewing permissions are tightened, until the '
-            . 'grace period runs out or the CDN is purged.</p>'
         );
+    }
+
+    /**
+     * A notice that grace periods only reach the browser, shown while the cache type is private.
+     *
+     * @param string $name The form field name, unique within the CMS form
+     * @return Wrapper
+     */
+    public static function privateNoticeField(string $name): Wrapper
+    {
+        $notice = Wrapper::create(LiteralField::create($name,
+            '<p class="message notice">With a <strong>private</strong> cache type, CDNs ignore both grace periods: '
+            . 'only the visitor\'s browser applies them, and most browsers ignore the error grace period.</p>'
+        ));
+        $notice->displayIf('CacheType')->isEqualTo('private')
+            ->andIf('CacheDuration')->isEqualTo('maxage')
+            ->end();
+
+        return $notice;
     }
 }

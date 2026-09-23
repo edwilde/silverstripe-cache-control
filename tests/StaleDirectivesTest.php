@@ -67,4 +67,21 @@ class StaleDirectivesTest extends SapphireTest
         $siteConfig->StaleIfErrorPreset = '604800';
         $this->assertTrue(StaleDirectives::hasGracePeriod($siteConfig));
     }
+
+    public function testPrivateNoticeShowsOnlyForPrivateMaxAge()
+    {
+        $notice = StaleDirectives::privateNoticeField('PrivateNotice');
+        $dispatchers = explode(',', $notice->DisplayLogicDispatchers());
+
+        $this->assertEqualsCanonicalizing(['CacheType', 'CacheDuration'], $dispatchers);
+        $this->assertStringContainsString('private', $notice->DisplayLogic());
+    }
+
+    public function testInfoFieldNoLongerCarriesThePrivateNotice()
+    {
+        $info = StaleDirectives::infoField('Info');
+
+        $this->assertStringNotContainsString('private', $info->getContent());
+    }
 }
+

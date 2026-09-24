@@ -247,7 +247,7 @@ class CacheControlContentControllerExtension extends Extension
      */
     protected function applySharedMaxAge(HTTPCacheControlMiddleware $middleware, SiteConfig|SiteTree $source): void
     {
-        $seconds = $source->CacheType === 'public' ? SharedMaxAge::forSource($source) : 0;
+        $seconds = SharedMaxAge::forSource($source);
 
         $middleware->setStateDirective(
             [HTTPCacheControlMiddleware::STATE_ENABLED, HTTPCacheControlMiddleware::STATE_PRIVATE],

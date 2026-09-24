@@ -65,10 +65,15 @@ final class SharedMaxAge
      * The CDN cache duration that should appear in a Cache-Control header.
      *
      * @param SiteConfig|SiteTree $source The object carrying the preset/custom fields
-     * @return int Seconds, or 0 when the CDN cache duration should not be emitted
+     * @return int Seconds, or 0 when the CDN cache duration should not be emitted, including for a
+     *             private cache type
      */
     public static function forSource(SiteConfig|SiteTree $source): int
     {
+        if ($source->CacheType !== 'public') {
+            return 0;
+        }
+
         return StaleDirectives::resolve($source->SharedMaxAgePreset, $source->SharedMaxAge);
     }
 

@@ -350,11 +350,9 @@ class CacheControlSiteConfigExtension extends Extension
             $directives[] = 'max-age=' . $maxAge;
 
             // CDN cache duration follows max-age, only for a public cache type
-            if ($this->owner->CacheType === 'public') {
-                $sharedMaxAge = SharedMaxAge::forSource($this->owner);
-                if ($sharedMaxAge > 0) {
-                    $directives[] = 's-maxage=' . $sharedMaxAge;
-                }
+            $sharedMaxAge = SharedMaxAge::forSource($this->owner);
+            if ($sharedMaxAge > 0) {
+                $directives[] = 's-maxage=' . $sharedMaxAge;
             }
 
             // Grace periods follow max-age, and replace must-revalidate when set

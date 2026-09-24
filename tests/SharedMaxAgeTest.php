@@ -68,6 +68,18 @@ class SharedMaxAgeTest extends SapphireTest
     }
 
     /**
+     * Check a private cache type resolves to zero whatever the preset.
+     */
+    public function testPrivateCacheTypeResolvesToZero()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->CacheType = 'private';
+        $siteConfig->SharedMaxAgePreset = '604800';
+
+        $this->assertSame(0, SharedMaxAge::forSource($siteConfig));
+    }
+
+    /**
      * Check validate adds a field error when the custom value is zero.
      */
     public function testValidateAddsErrorForCustomValueBelowOne()

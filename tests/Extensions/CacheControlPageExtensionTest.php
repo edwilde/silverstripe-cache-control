@@ -4,7 +4,9 @@ namespace Edwilde\CacheControl\Tests\Extensions;
 
 use Edwilde\CacheControl\Extensions\CacheControlPageExtension;
 use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
+use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\CMS\Model\SiteTree;
+use SilverStripe\Core\Config\Config;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\SiteConfig\SiteConfig;
 use SilverStripe\Versioned\Versioned;
@@ -738,5 +740,145 @@ class CacheControlPageExtensionTest extends SapphireTest
 
         $description = $page->getEffectiveCacheControlDescription();
         $this->assertStringNotContainsString('unpublished changes', strtolower($description));
+    }
+
+    public function testPageHeaderWithStaleDirectivesOmitsMustRevalidate()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->EnableMustRevalidate = true;
+        $page->StaleWhileRevalidatePreset = '86400';
+        $page->write();
+
+        $header = $page->getCacheControlHeader();
+        $this->assertStringContainsString('stale-while-revalidate=86400', $header);
+        $this->assertStringNotContainsString('must-revalidate', $header);
+    }
+
+    public function testPageHeaderWithBothStaleDirectives()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->StaleWhileRevalidatePreset = '86400';
+        $page->StaleIfErrorPreset = '604800';
+        $page->write();
+
+        $this->assertEquals(
+            'public, max-age=120, stale-while-revalidate=86400, stale-if-error=604800',
+            $page->getCacheControlHeader()
+        );
+    }
+
+    public function testPageStaleDirectivesOffByDefault()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->EnableMustRevalidate = true;
+        $page->write();
+
+        $this->assertEquals('public, max-age=120, must-revalidate', $page->getCacheControlHeader());
+    }
+
+    public function testPageValidationRejectsZeroCustomStaleIfError()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $page->StaleIfError = 0;
+
+        $this->assertFalse($page->validate()->isValid());
+    }
+
+    public function testPageValidationPassesForPositiveCustomStaleIfError()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $page->StaleIfError = 604800;
+
+        $this->assertTrue($page->validate()->isValid());
+    }
+
+    public function testPageValidationRejectsCustomStaleWhileRevalidateAboveOneYear()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->StaleWhileRevalidatePreset = StaleDirectives::PRESET_CUSTOM;
+        $page->StaleWhileRevalidate = StaleDirectives::MAX_SECONDS + 1;
+
+        $this->assertFalse($page->validate()->isValid());
+    }
+
+    public function testPageValidationRejectsCustomStaleIfErrorAboveOneYear()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $page->StaleIfError = StaleDirectives::MAX_SECONDS + 1;
+
+        $this->assertFalse($page->validate()->isValid());
+    }
+
+    public function testPageValidationPassesForCustomStaleValueAtOneYear()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->StaleIfErrorPreset = StaleDirectives::PRESET_CUSTOM;
+        $page->StaleIfError = StaleDirectives::MAX_SECONDS;
+
+        $this->assertTrue($page->validate()->isValid());
+    }
+
+    public function testPageFieldsPrefillFromSiteConfigStaleValues()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->StaleWhileRevalidatePreset = '604800';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $fields = $page->getCMSFields();
+
+        $this->assertEquals(
+            '604800',
+            $fields->dataFieldByName('StaleWhileRevalidatePreset')->getValue(),
+            'A page without an override should show the grace period it inherits'
+        );
+    }
+
+    public function testChildInheritsStaleDirectives()
+    {
+        Config::modify()->set(SiteTree::class, 'enable_cache_inheritance', true);
+
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+        $archive->StaleWhileRevalidatePreset = '86400';
+        $archive->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $this->assertStringContainsString('stale-while-revalidate=86400', $child->getCacheControlHeader());
     }
 }

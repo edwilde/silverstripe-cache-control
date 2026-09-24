@@ -15,6 +15,7 @@
 
 namespace Edwilde\CacheControl\Extensions;
 
+use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\Control\Middleware\HTTPCacheControlMiddleware;
 use SilverStripe\Core\Extension;
 use SilverStripe\SiteConfig\SiteConfig;
@@ -92,8 +93,13 @@ class CacheControlContentControllerExtension extends Extension
             // Add Expires header to match max-age
             $this->setExpiresHeader($maxAge);
 
-            // Must revalidate
-            if ($page->EnableMustRevalidate) {
+            $this->applyStaleDirectives($middleware, $page);
+
+            // must-revalidate is on by default in every cacheable state, so a grace period
+            // clears it explicitly.
+            if (StaleDirectives::hasGracePeriod($page)) {
+                $middleware->setMustRevalidate(false);
+            } elseif ($page->EnableMustRevalidate) {
                 $middleware->setMustRevalidate(true);
             }
         }
@@ -143,8 +149,13 @@ class CacheControlContentControllerExtension extends Extension
             // Add Expires header to match max-age
             $this->setExpiresHeader($maxAge);
 
-            // Must revalidate
-            if ($siteConfig->EnableMustRevalidate) {
+            $this->applyStaleDirectives($middleware, $siteConfig);
+
+            // must-revalidate is on by default in every cacheable state, so a grace period
+            // clears it explicitly.
+            if (StaleDirectives::hasGracePeriod($siteConfig)) {
+                $middleware->setMustRevalidate(false);
+            } elseif ($siteConfig->EnableMustRevalidate) {
                 $middleware->setMustRevalidate(true);
             }
         }
@@ -189,6 +200,30 @@ class CacheControlContentControllerExtension extends Extension
 
         $middleware->setMaxAge($draftMaxAge);
         $this->setExpiresHeader($draftMaxAge);
+    }
+
+    /**
+     * Apply the RFC 5861 grace-period directives from the resolved cache settings.
+     *
+     * Set on the same three states as max-age so the directives survive a later downgrade from
+     * public to private. A grace period of 0 is passed as false, which removes the directive;
+     * the value 0 would be emitted as "stale-while-revalidate=0".
+     *
+     * @param HTTPCacheControlMiddleware $middleware The middleware singleton
+     * @param SiteTree|SiteConfig $source The object supplying the cache settings
+     * @return void
+     */
+    protected function applyStaleDirectives(HTTPCacheControlMiddleware $middleware, SiteConfig|SiteTree $source): void
+    {
+        $states = [
+            HTTPCacheControlMiddleware::STATE_ENABLED,
+            HTTPCacheControlMiddleware::STATE_PRIVATE,
+            HTTPCacheControlMiddleware::STATE_PUBLIC,
+        ];
+
+        foreach (StaleDirectives::resolveAll($source) as $directive => $seconds) {
+            $middleware->setStateDirective($states, $directive, $seconds > 0 ? $seconds : false);
+        }
     }
 
     /**

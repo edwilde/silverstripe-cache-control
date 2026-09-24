@@ -20,6 +20,7 @@
 
 namespace Edwilde\CacheControl\Extensions;
 
+use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\Core\Extension;
 use SilverStripe\Core\Validation\ValidationResult;
 use SilverStripe\Forms\CheckboxField;
@@ -52,6 +53,10 @@ class CacheControlSiteConfigExtension extends Extension
         'MaxAge' => 'Int',
         'MaxAgePreset' => 'Enum("120,300,600,3600,86400,custom","120")',
         'EnableMustRevalidate' => 'Boolean',
+        'StaleWhileRevalidatePreset' => StaleDirectives::REFRESH_PRESET_ENUM,
+        'StaleWhileRevalidate' => 'Int',
+        'StaleIfErrorPreset' => StaleDirectives::ERROR_PRESET_ENUM,
+        'StaleIfError' => 'Int',
         'VaryAcceptEncoding' => 'Boolean',
         'VaryXForwardedProtocol' => 'Boolean',
         'VaryCookie' => 'Boolean',
@@ -74,6 +79,10 @@ class CacheControlSiteConfigExtension extends Extension
         'MaxAge' => 120,
         'MaxAgePreset' => '120',
         'EnableMustRevalidate' => true,
+        'StaleWhileRevalidatePreset' => StaleDirectives::PRESET_OFF,
+        'StaleWhileRevalidate' => 0,
+        'StaleIfErrorPreset' => StaleDirectives::PRESET_OFF,
+        'StaleIfError' => 0,
         'VaryAcceptEncoding' => true,
         'VaryXForwardedProtocol' => false,
         'VaryCookie' => false,
@@ -101,6 +110,10 @@ class CacheControlSiteConfigExtension extends Extension
             'MaxAge',
             'MaxAgePreset',
             'EnableMustRevalidate',
+            'StaleWhileRevalidatePreset',
+            'StaleWhileRevalidate',
+            'StaleIfErrorPreset',
+            'StaleIfError',
             'VaryAcceptEncoding',
             'VaryXForwardedProtocol',
             'VaryCookie',
@@ -131,8 +144,31 @@ class CacheControlSiteConfigExtension extends Extension
             ->setDescription('Enter a custom cache duration in seconds.')
             ->setAttribute('placeholder', '120');
 
+        $staleInfoField = StaleDirectives::infoField('StaleDirectivesInfo');
+
+        $staleWhileRevalidatePresetField = DropdownField::create(
+            'StaleWhileRevalidatePreset',
+            'Refresh Grace Period',
+            StaleDirectives::refreshPresetOptions()
+        )->setDescription('How long caches may serve the expired copy while fetching a fresh one in the background.');
+
+        $staleWhileRevalidateField = NumericField::create('StaleWhileRevalidate', 'Custom Refresh Grace Period (seconds)')
+            ->setDescription('Enter a custom refresh grace period in seconds, up to one year (31536000).')
+            ->setAttribute('placeholder', '86400');
+
+        $staleIfErrorPresetField = DropdownField::create(
+            'StaleIfErrorPreset',
+            'Error Grace Period',
+            StaleDirectives::errorPresetOptions()
+        )->setDescription('How long caches may keep serving the stored copy while the server returns errors.');
+
+        $staleIfErrorField = NumericField::create('StaleIfError', 'Custom Error Grace Period (seconds)')
+            ->setDescription('Enter a custom error grace period in seconds, up to one year (31536000).')
+            ->setAttribute('placeholder', '604800');
+
         $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
-            ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content (recommended).');
+            ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content. '
+                . 'Not available while a grace period is set, which asks caches to do the opposite.');
 
         // Apply display logic - fields show/hide based on conditions
         // Note: OptionsetFields must be wrapped for display logic to work properly
@@ -151,8 +187,25 @@ class CacheControlSiteConfigExtension extends Extension
             ->andIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('EnableCacheControl')->isChecked();
 
-        $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')
+        $staleWhileRevalidatePresetField->displayIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('EnableCacheControl')->isChecked();
+
+        $staleWhileRevalidateField->displayIf('StaleWhileRevalidatePreset')->isEqualTo(StaleDirectives::PRESET_CUSTOM)
+            ->andIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('EnableCacheControl')->isChecked();
+
+        $staleIfErrorPresetField->displayIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('EnableCacheControl')->isChecked();
+
+        $staleIfErrorField->displayIf('StaleIfErrorPreset')->isEqualTo(StaleDirectives::PRESET_CUSTOM)
+            ->andIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('EnableCacheControl')->isChecked();
+
+        // Hidden while either grace period is set, since the two cancel each other out.
+        $mustRevalidateField->displayIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('EnableCacheControl')->isChecked()
+            ->andIf('StaleWhileRevalidatePreset')->isEqualTo(StaleDirectives::PRESET_OFF)
+            ->andIf('StaleIfErrorPreset')->isEqualTo(StaleDirectives::PRESET_OFF);
 
         $draftReductionField = CheckboxField::create(
             'EnableDraftCacheReduction',
@@ -172,6 +225,12 @@ class CacheControlSiteConfigExtension extends Extension
                 $cacheDurationWrapper,
                 $maxAgePresetField,
                 $maxAgeField,
+                $staleInfoField,
+                StaleDirectives::privateNoticeField('StaleDirectivesPrivateNotice'),
+                $staleWhileRevalidatePresetField,
+                $staleWhileRevalidateField,
+                $staleIfErrorPresetField,
+                $staleIfErrorField,
                 $mustRevalidateField,
                 $draftReductionField,
             ]
@@ -252,10 +311,15 @@ class CacheControlSiteConfigExtension extends Extension
                 $maxAge = (int)$this->owner->MaxAgePreset ?: 120;
             }
             $directives[] = 'max-age=' . $maxAge;
+
+            // Grace periods follow max-age, and replace must-revalidate when set
+            foreach (StaleDirectives::forSource($this->owner) as $directive => $seconds) {
+                $directives[] = $directive . '=' . $seconds;
+            }
         }
 
-        // Add must-revalidate if enabled
-        if ($this->owner->EnableMustRevalidate) {
+        // Add must-revalidate if enabled and no grace period cancels it
+        if ($this->owner->EnableMustRevalidate && !StaleDirectives::hasGracePeriod($this->owner)) {
             $directives[] = 'must-revalidate';
         }
 
@@ -328,12 +392,14 @@ class CacheControlSiteConfigExtension extends Extension
 
     private function doValidateMaxAge($result): void
     {
-        if ($this->owner->EnableCacheControl
-            && $this->owner->CacheDuration === 'maxage'
-            && $this->owner->MaxAgePreset === 'custom'
-            && (int)$this->owner->MaxAge < 1
-        ) {
+        if (!$this->owner->EnableCacheControl || $this->owner->CacheDuration !== 'maxage') {
+            return;
+        }
+
+        if ($this->owner->MaxAgePreset === 'custom' && (int)$this->owner->MaxAge < 1) {
             $result->addFieldError('MaxAge', 'Custom max age must be at least 1 second.');
         }
+
+        StaleDirectives::validate($this->owner, $result);
     }
 }

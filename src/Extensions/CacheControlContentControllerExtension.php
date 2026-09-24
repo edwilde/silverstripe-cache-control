@@ -15,6 +15,7 @@
 
 namespace Edwilde\CacheControl\Extensions;
 
+use Edwilde\CacheControl\SharedMaxAge;
 use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\Control\Middleware\HTTPCacheControlMiddleware;
 use SilverStripe\Core\Extension;
@@ -94,6 +95,7 @@ class CacheControlContentControllerExtension extends Extension
             $this->setExpiresHeader($maxAge);
 
             $this->applyStaleDirectives($middleware, $page);
+            $this->applySharedMaxAge($middleware, $page);
 
             // must-revalidate is on by default in every cacheable state, so a grace period
             // clears it explicitly.
@@ -150,6 +152,7 @@ class CacheControlContentControllerExtension extends Extension
             $this->setExpiresHeader($maxAge);
 
             $this->applyStaleDirectives($middleware, $siteConfig);
+            $this->applySharedMaxAge($middleware, $siteConfig);
 
             // must-revalidate is on by default in every cacheable state, so a grace period
             // clears it explicitly.
@@ -200,6 +203,15 @@ class CacheControlContentControllerExtension extends Extension
 
         $middleware->setMaxAge($draftMaxAge);
         $this->setExpiresHeader($draftMaxAge);
+
+        // Cap an existing CDN cache duration to the same draft value, public state only.
+        if ($middleware->getStateDirective(HTTPCacheControlMiddleware::STATE_PUBLIC, 's-maxage')) {
+            $middleware->setStateDirective(
+                [HTTPCacheControlMiddleware::STATE_PUBLIC],
+                's-maxage',
+                $draftMaxAge
+            );
+        }
     }
 
     /**
@@ -224,6 +236,33 @@ class CacheControlContentControllerExtension extends Extension
         foreach (StaleDirectives::resolveAll($source) as $directive => $seconds) {
             $middleware->setStateDirective($states, $directive, $seconds > 0 ? $seconds : false);
         }
+    }
+
+    /**
+     * Apply the resolved CDN cache duration to the public state only.
+     *
+     * Set only on STATE_PUBLIC, not via setSharedMaxAge(), so a session downgrade to private
+     * never emits "private, s-maxage=...". A resolved value of 0 is passed as false on every
+     * non-disabled state, removing any s-maxage set elsewhere and keeping the preview honest.
+     *
+     * @param HTTPCacheControlMiddleware $middleware The middleware singleton
+     * @param SiteTree|SiteConfig $source The object supplying the cache settings
+     * @return void
+     */
+    protected function applySharedMaxAge(HTTPCacheControlMiddleware $middleware, SiteConfig|SiteTree $source): void
+    {
+        $seconds = SharedMaxAge::forSource($source);
+
+        $middleware->setStateDirective(
+            [HTTPCacheControlMiddleware::STATE_ENABLED, HTTPCacheControlMiddleware::STATE_PRIVATE],
+            's-maxage',
+            false
+        );
+        $middleware->setStateDirective(
+            [HTTPCacheControlMiddleware::STATE_PUBLIC],
+            's-maxage',
+            $seconds > 0 ? $seconds : false
+        );
     }
 
     /**

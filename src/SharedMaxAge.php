@@ -44,7 +44,7 @@ final class SharedMaxAge
     public const PRESET_ENUM = 'Enum("0,300,3600,86400,604800,2592000,custom","0")';
 
     /**
-     * Dropdown options for the CDN cache duration preset, in minutes to a month.
+     * Dropdown options for the CDN cache duration preset, from 5 minutes to 30 days.
      *
      * @return array<string, string>
      */

@@ -19,6 +19,7 @@
 
 namespace Edwilde\CacheControl\Extensions;
 
+use Edwilde\CacheControl\SharedMaxAge;
 use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\Core\Extension;
 use SilverStripe\Core\Validation\ValidationResult;
@@ -91,6 +92,8 @@ class CacheControlPageExtension extends Extension
         'CacheDuration' => 'Enum("maxage,nostore","maxage")',
         'MaxAge' => 'Int',
         'MaxAgePreset' => 'Enum("120,300,600,3600,86400,custom","120")',
+        'SharedMaxAgePreset' => SharedMaxAge::PRESET_ENUM,
+        'SharedMaxAge' => 'Int',
         'EnableMustRevalidate' => 'Boolean',
         'StaleWhileRevalidatePreset' => StaleDirectives::REFRESH_PRESET_ENUM,
         'StaleWhileRevalidate' => 'Int',
@@ -114,6 +117,8 @@ class CacheControlPageExtension extends Extension
         'CacheDuration' => 'maxage',
         'MaxAge' => 120,
         'MaxAgePreset' => '120',
+        'SharedMaxAgePreset' => SharedMaxAge::PRESET_OFF,
+        'SharedMaxAge' => 0,
         'EnableMustRevalidate' => true,
         'StaleWhileRevalidatePreset' => StaleDirectives::PRESET_OFF,
         'StaleWhileRevalidate' => 0,
@@ -147,6 +152,8 @@ class CacheControlPageExtension extends Extension
             'CacheDuration',
             'MaxAge',
             'MaxAgePreset',
+            'SharedMaxAgePreset',
+            'SharedMaxAge',
             'EnableMustRevalidate',
             'StaleWhileRevalidatePreset',
             'StaleWhileRevalidate',
@@ -220,10 +227,25 @@ class CacheControlPageExtension extends Extension
             '3600' => '1 hour (3600 seconds)',
             '86400' => '1 day (86400 seconds)',
             'custom' => 'Custom (specify in seconds)',
-        ])->setDescription('Choose a common cache duration or select custom to specify your own.');
+        ])->setDescription(
+            'How long visitors\' browsers keep a copy of the page. CDNs use the same time unless '
+            . 'you set a CDN cache duration below.'
+        );
         $maxAgeField = NumericField::create('MaxAge', 'Custom Max Age (seconds)')
             ->setDescription('Enter a custom cache duration in seconds.')
             ->setAttribute('placeholder', '120');
+        $sharedMaxAgeInfoField = SharedMaxAge::infoField('PageSharedMaxAgeInfo');
+        $sharedMaxAgePresetField = DropdownField::create(
+            'SharedMaxAgePreset',
+            'CDN Cache Duration',
+            SharedMaxAge::presetOptions()
+        )->setDescription(
+            'How long the CDN may keep its copy. Browsers ignore this. Usually longer than the Max '
+            . 'Age Duration: a shorter time makes the CDN fetch a fresh copy more often than browsers do.'
+        );
+        $sharedMaxAgeField = NumericField::create('SharedMaxAge', 'Custom CDN Cache Duration (seconds)')
+            ->setDescription('Enter a custom CDN cache duration in seconds, up to one year (31536000).')
+            ->setAttribute('placeholder', '604800');
         $staleInfoField = StaleDirectives::infoField('PageStaleDirectivesInfo');
         $staleWhileRevalidatePresetField = DropdownField::create(
             'StaleWhileRevalidatePreset',
@@ -264,6 +286,8 @@ class CacheControlPageExtension extends Extension
         $cacheDurationField->setValue($source->CacheDuration ?: 'maxage');
         $maxAgePresetField->setValue($source->MaxAgePreset ?: '120');
         $maxAgeField->setValue($source->MaxAge ?: 120);
+        $sharedMaxAgePresetField->setValue($source->SharedMaxAgePreset ?: SharedMaxAge::PRESET_OFF);
+        $sharedMaxAgeField->setValue((int)$source->SharedMaxAge);
         $mustRevalidateField->setValue($source->EnableMustRevalidate);
         $staleWhileRevalidatePresetField->setValue($source->StaleWhileRevalidatePreset ?: StaleDirectives::PRESET_OFF);
         $staleWhileRevalidateField->setValue((int)$source->StaleWhileRevalidate);
@@ -302,6 +326,17 @@ class CacheControlPageExtension extends Extension
             ->andIf('OverrideCacheControl')->isChecked()
             ->andIf('EnableCacheControl')->isChecked();
 
+        $sharedMaxAgePresetField->displayIf('CacheType')->isEqualTo('public')
+            ->andIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked();
+
+        $sharedMaxAgeField->displayIf('SharedMaxAgePreset')->isEqualTo(SharedMaxAge::PRESET_CUSTOM)
+            ->andIf('CacheType')->isEqualTo('public')
+            ->andIf('CacheDuration')->isEqualTo('maxage')
+            ->andIf('OverrideCacheControl')->isChecked()
+            ->andIf('EnableCacheControl')->isChecked();
+
         $staleWhileRevalidatePresetField->displayIf('CacheDuration')->isEqualTo('maxage')
             ->andIf('OverrideCacheControl')->isChecked()
             ->andIf('EnableCacheControl')->isChecked();
@@ -334,6 +369,9 @@ class CacheControlPageExtension extends Extension
                 $cacheDurationWrapper,
                 $maxAgePresetField,
                 $maxAgeField,
+                $sharedMaxAgeInfoField,
+                $sharedMaxAgePresetField,
+                $sharedMaxAgeField,
                 $staleInfoField,
                 StaleDirectives::privateNoticeField('PageStaleDirectivesPrivateNotice'),
                 $staleWhileRevalidatePresetField,
@@ -533,6 +571,14 @@ class CacheControlPageExtension extends Extension
             }
             $directives[] = 'max-age=' . $maxAge;
 
+            // CDN cache duration follows max-age, only for a public cache type
+            if ($this->owner->CacheType === 'public') {
+                $sharedMaxAge = SharedMaxAge::forSource($this->owner);
+                if ($sharedMaxAge > 0) {
+                    $directives[] = 's-maxage=' . $sharedMaxAge;
+                }
+            }
+
             // Grace periods follow max-age, and replace must-revalidate when set
             foreach (StaleDirectives::forSource($this->owner) as $directive => $seconds) {
                 $directives[] = $directive . '=' . $seconds;
@@ -588,6 +634,7 @@ class CacheControlPageExtension extends Extension
             $result->addFieldError('MaxAge', 'Custom max age must be at least 1 second.');
         }
 
+        SharedMaxAge::validate($this->owner, $result);
         StaleDirectives::validate($this->owner, $result);
     }
 

@@ -94,8 +94,8 @@ class CacheControlContentControllerExtension extends Extension
             // Add Expires header to match max-age
             $this->setExpiresHeader($maxAge);
 
-            $this->applyStaleDirectives($middleware, $page);
             $this->applySharedMaxAge($middleware, $page);
+            $this->applyStaleDirectives($middleware, $page);
 
             // must-revalidate is on by default in every cacheable state, so a grace period
             // clears it explicitly.
@@ -151,8 +151,8 @@ class CacheControlContentControllerExtension extends Extension
             // Add Expires header to match max-age
             $this->setExpiresHeader($maxAge);
 
-            $this->applyStaleDirectives($middleware, $siteConfig);
             $this->applySharedMaxAge($middleware, $siteConfig);
+            $this->applyStaleDirectives($middleware, $siteConfig);
 
             // must-revalidate is on by default in every cacheable state, so a grace period
             // clears it explicitly.
@@ -241,17 +241,13 @@ class CacheControlContentControllerExtension extends Extension
     /**
      * Apply the resolved CDN cache duration to the public state only.
      *
-     * Set only on STATE_PUBLIC, not via setSharedMaxAge(), so a session downgrade to private
-     * never emits "private, s-maxage=...". A resolved value of 0 is passed as false on every
-     * non-disabled state, removing any s-maxage set elsewhere and keeping the preview honest.
-     *
      * @param HTTPCacheControlMiddleware $middleware The middleware singleton
      * @param SiteTree|SiteConfig $source The object supplying the cache settings
      * @return void
      */
     protected function applySharedMaxAge(HTTPCacheControlMiddleware $middleware, SiteConfig|SiteTree $source): void
     {
-        $seconds = SharedMaxAge::forSource($source);
+        $seconds = $source->CacheType === 'public' ? SharedMaxAge::forSource($source) : 0;
 
         $middleware->setStateDirective(
             [HTTPCacheControlMiddleware::STATE_ENABLED, HTTPCacheControlMiddleware::STATE_PRIVATE],

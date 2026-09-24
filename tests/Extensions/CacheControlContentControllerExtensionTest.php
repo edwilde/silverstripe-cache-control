@@ -924,4 +924,51 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
         $this->assertEquals(3600, $middleware->getDirective('stale-while-revalidate'));
         $this->assertFalse($middleware->getDirective('must-revalidate'));
     }
+
+    /**
+     * The rendered header orders s-maxage before the grace periods, matching the CMS previews.
+     */
+    public function testGeneratedHeaderOrdersSharedMaxAgeBeforeGracePeriods()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '300';
+        $page->SharedMaxAgePreset = '604800';
+        $page->StaleWhileRevalidatePreset = '3600';
+        $page->write();
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $header = $this->getMiddleware()->generateHeadersFor($controller->getResponse())['Cache-Control'];
+        $this->assertMatchesRegularExpression(
+            '/max-age=300, s-maxage=604800, stale-while-revalidate=3600/',
+            $header
+        );
+    }
+
+    /**
+     * A private cache type never emits s-maxage, even when the state is forced public elsewhere.
+     */
+    public function testSharedMaxAgeWithheldForPrivateCacheTypeEvenWhenForcedPublic()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'private';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $middleware = $this->getMiddleware();
+        $middleware->publicCache(true);
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $this->assertFalse($middleware->getDirective('s-maxage'));
+    }
 }

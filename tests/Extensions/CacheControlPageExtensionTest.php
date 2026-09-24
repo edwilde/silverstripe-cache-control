@@ -976,4 +976,47 @@ class CacheControlPageExtensionTest extends SapphireTest
 
         $this->assertFalse($page->validate()->isValid());
     }
+
+    /**
+     * Check the page preview omits s-maxage for a no-store cache duration.
+     */
+    public function testGetCacheControlHeaderNoStoreOmitsSharedMaxAge()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'shared_maxage_nostore');
+
+        $this->assertEquals('no-store', $page->getCacheControlHeader());
+    }
+
+    /**
+     * Check the page preview orders s-maxage before a grace period.
+     */
+    public function testGetCacheControlHeaderSharedMaxAgeCombinesWithGracePeriod()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'shared_maxage_with_grace');
+
+        $this->assertEquals(
+            'public, max-age=300, s-maxage=604800, stale-while-revalidate=3600',
+            $page->getCacheControlHeader()
+        );
+    }
+
+    /**
+     * Check an inheriting page's preview shows the ancestor's CDN cache duration.
+     */
+    public function testGetCacheControlHeaderInheritsSharedMaxAgeFromParent()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+        $archive->SharedMaxAgePreset = '604800';
+        $archive->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $this->assertEquals(
+            'public, max-age=86400, s-maxage=604800, must-revalidate',
+            $child->getCacheControlHeader(),
+            'Child without override should inherit the CDN cache duration from the parent'
+        );
+    }
 }

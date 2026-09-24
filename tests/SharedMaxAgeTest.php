@@ -2,12 +2,12 @@
 
 namespace Edwilde\CacheControl\Tests;
 
+use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
 use Edwilde\CacheControl\SharedMaxAge;
 use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\Core\Validation\ValidationResult;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\SiteConfig\SiteConfig;
-use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
 
 class SharedMaxAgeTest extends SapphireTest
 {

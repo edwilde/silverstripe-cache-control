@@ -136,6 +136,22 @@ class SharedMaxAgeTest extends SapphireTest
     }
 
     /**
+     * Check validate ignores an invalid custom value while the cache type is private.
+     */
+    public function testValidateIgnoresCustomValueForPrivateCacheType()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->CacheType = 'private';
+        $siteConfig->SharedMaxAgePreset = SharedMaxAge::PRESET_CUSTOM;
+        $siteConfig->SharedMaxAge = 0;
+
+        $result = new ValidationResult();
+        SharedMaxAge::validate($siteConfig, $result);
+
+        $this->assertTrue($result->isValid());
+    }
+
+    /**
      * Check the info field only displays for a public, max-age cache configuration.
      */
     public function testInfoFieldShowsOnlyForPublicMaxAge()

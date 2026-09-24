@@ -75,13 +75,15 @@ final class SharedMaxAge
     /**
      * Add a field error when the custom CDN cache duration is outside 1 second to MAX_SECONDS.
      *
+     * Skipped for a private cache type, where the CMS hides the CDN cache duration fields.
+     *
      * @param SiteConfig|SiteTree $source The object carrying the preset/custom fields
      * @param ValidationResult $result The result to add field errors to
      * @return void
      */
     public static function validate(SiteConfig|SiteTree $source, ValidationResult $result): void
     {
-        if ((string)$source->SharedMaxAgePreset !== self::PRESET_CUSTOM) {
+        if ($source->CacheType !== 'public' || (string)$source->SharedMaxAgePreset !== self::PRESET_CUSTOM) {
             return;
         }
 

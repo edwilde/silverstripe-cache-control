@@ -66,7 +66,7 @@ src/
    - Set cache state (public/private or disabled)
    - Set cache duration (max-age or no-store)
    - Add Expires header to match max-age
-   - Apply the CDN cache duration (`applySharedMaxAge()`): resolve `SharedMaxAge::forSource()` and set `s-maxage` on `STATE_PUBLIC` only, so a session downgrade to private never emits it; a resolved value of 0 removes any `s-maxage` set elsewhere on every non-disabled state
+   - Apply the CDN cache duration (`applySharedMaxAge()`): resolve `SharedMaxAge::forSource()` (0 unless the source's `CacheType` is public) and set `s-maxage` on `STATE_PUBLIC` only, so a session downgrade to private never emits it; a resolved value of 0 removes any `s-maxage` set elsewhere on every non-disabled state
    - Apply `stale-while-revalidate` / `stale-if-error` (`applyStaleDirectives()`) and turn off `must-revalidate` when either is set
    - Apply Vary headers based on CMS configuration (always read from SiteConfig)
 5. **Draft cache reduction** (`applyDraftCacheReduction()`): if `EnableDraftCacheReduction` is on and the page's `HasPendingDraftChanges` flag is set, `max-age` and `Expires` drop to `draft_cache_max_age` (default 10s), and an existing `s-maxage` on `STATE_PUBLIC` is capped to the same value. The flag is written on save and cleared on publish, so this costs no extra query.
@@ -138,7 +138,7 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
 - `"no-store"` (ignores all other settings)
 
 **Directive rules worth knowing**:
-- `s-maxage` is emitted on `STATE_PUBLIC` only, via `setStateDirective([STATE_PUBLIC], 's-maxage', ...)`, never via the middleware's `setSharedMaxAge()`. That helper writes all three non-disabled states, so a session downgrade to private would otherwise emit `private, s-maxage=...`, which the private cache type never should.
+- `s-maxage` is emitted on `STATE_PUBLIC` only, via `setStateDirective([STATE_PUBLIC], 's-maxage', ...)`, never via the middleware's `setSharedMaxAge()`. That helper writes all three non-disabled states, so a session downgrade to private would otherwise emit `private, s-maxage=...`, which the private cache type never should. The resolved value is also 0 unless the source's `CacheType` is public, so project code forcing `publicCache(true)` on a private configuration still gets no `s-maxage`, matching the preview.
 - `HTTPCacheControlMiddleware::$allowed_directives` is a `@config` list. `setStateDirective()` throws for any name not in it, so a new directive (e.g. `stale-while-revalidate`, `stale-if-error`) must first be appended to that list in `_config/config.yml`. The framework's own docblock names this as the extension point.
 - `must-revalidate` and the RFC 5861 stale directives are mutually exclusive in effect: `must-revalidate` forbids reusing a stale response without revalidation, so a header carrying both has no grace period. Whenever a stale directive is emitted, `must-revalidate` must be omitted, in both the controller emission and the CMS header preview.
 - The middleware's built-in `stateDirectives` table sets `must-revalidate => true` on every cacheable state, so omitting it means calling `setMustRevalidate(false)`, not just declining to call `setMustRevalidate(true)`.

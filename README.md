@@ -16,6 +16,7 @@ A Silverstripe CMS module that gives content editors control over HTTP Cache-Con
 - **Sensible defaults** - 120 seconds cache time
 - **Cache inheritance** - optionally apply cache settings to all descendant pages (opt-in via config)
 - **Stale grace periods** - `stale-while-revalidate` and `stale-if-error` for CDN micro-caching (opt-in per site or page)
+- **CDN cache duration** - `s-maxage` to give CDNs a longer cache lifetime than browsers (opt-in per site or page, public cache type only)
 
 ## Version Compatibility
 
@@ -56,6 +57,8 @@ Navigate to **Settings > Cache Control** in the CMS to configure default cache h
 - **Cache Duration**: Choose between Max Age (time-based caching) or No Store (no caching)
 - **Max Age Duration**: Select from common preset durations (2 min, 5 min, 10 min, 1 hour, 1 day) or choose Custom
 - **Custom Max Age**: When "Custom" is selected, enter your own cache duration in seconds
+- **CDN Cache Duration** (`s-maxage`): How long a CDN may keep its copy, separately from the browser max age. Off by default (CDNs use the same time as Max Age Duration), with presets from 5 minutes to 30 days or Custom. Shown only when the cache type is Public
+- **Custom CDN Cache Duration**: When "Custom" is selected, enter your own value in seconds, up to one year
 - **Refresh Grace Period** (`stale-while-revalidate`): How long a CDN may serve the expired copy while fetching a fresh one in the background. Off by default, with presets from 5 minutes to 7 days or Custom
 - **Custom Refresh Grace Period**: When "Custom" is selected, enter your own value in seconds, up to one year
 - **Error Grace Period** (`stale-if-error`): How long a CDN may keep serving the stored copy while the server returns errors. Off by default, with presets from 1 hour to 30 days or Custom
@@ -196,6 +199,32 @@ from its stored copy.
 > Cloudflare, Fastly, Akamai and Varnish honour RFC 5861. Some CDN and WAF products ignore
 > `stale-if-error`. The module emits the directives; acting on them is up to the edge.
 
+### CDN Cache Duration
+
+By default, a CDN keeps its copy for the same time as the browser (`max-age`). The CDN cache
+duration setting gives the CDN a longer lifetime of its own, via `s-maxage`, which browsers
+ignore:
+
+```
+Cache-Control: public, max-age=300, s-maxage=604800
+```
+
+Here browsers revalidate after 5 minutes, but the CDN keeps serving its copy for 7 days. This
+only makes sense when the CDN is cleared on publish — otherwise a visitor can see a stale page
+for as long as the CDN cache duration allows. It only applies to a **public** cache type; a
+private page never emits `s-maxage`.
+
+Set it in **Settings > Cache Control > Cache-Control Header (Advanced)**, or per page on the
+page's own Cache Control tab, directly under Max Age Duration. It combines with the stale grace
+periods and with draft cache reduction, which caps `s-maxage` to the same short value as
+`max-age` while a page has unpublished changes.
+
+> [!IMPORTANT]
+> Turning on cache control in the CMS with no CDN cache duration set removes any `s-maxage`
+> already present on the response — for example one added by project code in
+> `PageController::init()`. This keeps the CMS header preview honest, but is a behaviour change
+> for a project that was relying on its own `s-maxage`.
+
 ## Cache Control Options Explained
 
 ### Public vs Private
@@ -210,6 +239,9 @@ Specifies how long (in seconds) the content can be cached before it must be reva
 - **1 hour** (3600 seconds) - For content that changes infrequently
 - **1 day** (86400 seconds) - For highly static content
 - **Custom** - Enter your own value in seconds for specific requirements
+
+### CDN Cache Duration (`s-maxage`)
+How long a CDN may keep its copy, independently of the browser's max age. Off by default, meaning the CDN uses the same time as Max Age Duration. Presets run from 5 minutes to 30 days, plus a custom value in seconds. Public cache type only.
 
 ### Stale While Revalidate (Refresh Grace Period)
 How long a cache may serve its expired copy while fetching a fresh one in the background. Presets run from 5 minutes to 7 days, plus a custom value in seconds. Off by default.

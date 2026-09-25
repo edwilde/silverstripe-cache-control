@@ -42,3 +42,19 @@ SilverStripe\CMS\Model\SiteTree:
   archive_override_no_apply_child:
     Title: 'Child of Override No Apply'
     Parent: =>SilverStripe\CMS\Model\SiteTree.archive_override_no_apply
+  shared_maxage_nostore:
+    Title: 'Shared Max Age No Store'
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'public'
+    CacheDuration: 'nostore'
+    SharedMaxAgePreset: '604800'
+  shared_maxage_with_grace:
+    Title: 'Shared Max Age With Grace Period'
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'public'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '300'
+    SharedMaxAgePreset: '604800'
+    StaleWhileRevalidatePreset: '3600'

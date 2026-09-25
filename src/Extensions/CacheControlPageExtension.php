@@ -204,7 +204,8 @@ class CacheControlPageExtension extends Extension
                 );
         }
 
-        $pageHeaderField = HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3);
+        // Headings are wrapped because display logic only toggles div holders, not a bare <h3>.
+        $pageHeaderField = Wrapper::create(HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3));
         $pageInfoField = LiteralField::create('PageCacheControlInfo',
             '<p class="message info">These settings apply to this page only.</p>'
         );
@@ -229,8 +230,8 @@ class CacheControlPageExtension extends Extension
         $maxAgeField = NumericField::create('MaxAge', 'Custom Max Age (seconds)')
             ->setDescription('In seconds.')
             ->setAttribute('placeholder', '120');
-        $maxAgeHeaderField = HeaderField::create('PageMaxAgeHeader', 'Browser cache', 3)->addExtraClass('ps-3 mt-3');
-        $sharedMaxAgeHeaderField = HeaderField::create('PageSharedMaxAgeHeader', 'Content Delivery Network (CDN) cache', 3)->addExtraClass('ps-3');
+        $maxAgeHeaderField = Wrapper::create(HeaderField::create('PageMaxAgeHeader', 'Browser cache', 3))->addExtraClass('mt-3');
+        $sharedMaxAgeHeaderField = Wrapper::create(HeaderField::create('PageSharedMaxAgeHeader', 'Content Delivery Network (CDN) cache', 3));
         $sharedMaxAgeInfoField = SharedMaxAge::infoField('PageSharedMaxAgeInfo');
         $sharedMaxAgePresetField = DropdownField::create(
             'SharedMaxAgePreset',
@@ -240,7 +241,7 @@ class CacheControlPageExtension extends Extension
         $sharedMaxAgeField = NumericField::create('SharedMaxAge', 'Custom CDN Cache Duration (seconds)')
             ->setDescription('In seconds, up to one year (31536000).')
             ->setAttribute('placeholder', '604800');
-        $staleHeaderField = HeaderField::create('PageStaleDirectivesHeader', 'Grace periods', 3)->addExtraClass('ps-3');
+        $staleHeaderField = Wrapper::create(HeaderField::create('PageStaleDirectivesHeader', 'Grace periods', 3));
         $staleInfoField = StaleDirectives::infoField('PageStaleDirectivesInfo');
         $staleWhileRevalidatePresetField = DropdownField::create(
             'StaleWhileRevalidatePreset',
@@ -291,7 +292,7 @@ class CacheControlPageExtension extends Extension
 
         // Apply Display Logic - fields show/hide based on conditions
         // First level: only show when override is enabled
-        $pageHeaderField->displayIf('OverrideCacheControl')->isChecked();
+        $pageHeaderField->displayIf('OverrideCacheControl')->isChecked()->end();
         $pageInfoField->displayIf('OverrideCacheControl')->isChecked();
         $enableCacheField->displayIf('OverrideCacheControl')->isChecked();
 
@@ -358,12 +359,12 @@ class CacheControlPageExtension extends Extension
             ->andIf('StaleIfErrorPreset')->isEqualTo(StaleDirectives::PRESET_OFF);
 
         // Section headings follow the visibility of the fields beneath them.
-        $maxAgeHeaderField->displayIf('CacheDuration')->isEqualTo('maxage');
+        $maxAgeHeaderField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
 
         $sharedMaxAgeHeaderField->displayIf('CacheType')->isEqualTo('public')
-            ->andIf('CacheDuration')->isEqualTo('maxage');
+            ->andIf('CacheDuration')->isEqualTo('maxage')->end();
 
-        $staleHeaderField->displayIf('CacheDuration')->isEqualTo('maxage');
+        $staleHeaderField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
 
         $staleInfoWrapper = Wrapper::create($staleInfoField);
         $staleInfoWrapper->displayIf('CacheDuration')->isEqualTo('maxage')->end();
@@ -371,7 +372,7 @@ class CacheControlPageExtension extends Extension
         // Group page-specific settings in a collapsible section
         $pageCacheControlSection = ToggleCompositeField::create('PageCacheControlSettings', 'Cache-Control Header (Advanced)',
             [
-                HeaderField::create('PageCacheTypeHeader', 'Cache type and duration', 3)->addExtraClass('ps-3'),
+                Wrapper::create(HeaderField::create('PageCacheTypeHeader', 'Cache type and duration', 3)),
                 $cacheTypeWrapper,
                 $cacheDurationWrapper,
                 $maxAgeHeaderField,

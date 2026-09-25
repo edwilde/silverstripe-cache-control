@@ -151,9 +151,10 @@ class CacheControlSiteConfigExtension extends Extension
             ->setDescription('In seconds.')
             ->setAttribute('placeholder', '120');
 
-        $maxAgeHeaderField = HeaderField::create('MaxAgeHeader', 'Browser cache', 3)->addExtraClass('ps-3 mt-3');
+        // Headings are wrapped because display logic only toggles div holders, not a bare <h3>.
+        $maxAgeHeaderField = Wrapper::create(HeaderField::create('MaxAgeHeader', 'Browser cache', 3))->addExtraClass('mt-3');
 
-        $sharedMaxAgeHeaderField = HeaderField::create('SharedMaxAgeHeader', 'Content Delivery Network (CDN) cache', 3)->addExtraClass('ps-3');
+        $sharedMaxAgeHeaderField = Wrapper::create(HeaderField::create('SharedMaxAgeHeader', 'Content Delivery Network (CDN) cache', 3));
 
         $sharedMaxAgeInfoField = SharedMaxAge::infoField('SharedMaxAgeInfo');
 
@@ -167,7 +168,7 @@ class CacheControlSiteConfigExtension extends Extension
             ->setDescription('In seconds, up to one year (31536000).')
             ->setAttribute('placeholder', '604800');
 
-        $staleHeaderField = HeaderField::create('StaleDirectivesHeader', 'Grace periods', 3)->addExtraClass('ps-3');
+        $staleHeaderField = Wrapper::create(HeaderField::create('StaleDirectivesHeader', 'Grace periods', 3));
 
         $staleInfoField = StaleDirectives::infoField('StaleDirectivesInfo');
 
@@ -242,18 +243,18 @@ class CacheControlSiteConfigExtension extends Extension
             ->andIf('StaleIfErrorPreset')->isEqualTo(StaleDirectives::PRESET_OFF);
 
         // Section headings follow the visibility of the fields beneath them.
-        $maxAgeHeaderField->displayIf('CacheDuration')->isEqualTo('maxage');
+        $maxAgeHeaderField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
 
         $sharedMaxAgeHeaderField->displayIf('CacheType')->isEqualTo('public')
-            ->andIf('CacheDuration')->isEqualTo('maxage');
+            ->andIf('CacheDuration')->isEqualTo('maxage')->end();
 
-        $staleHeaderField->displayIf('CacheDuration')->isEqualTo('maxage');
+        $staleHeaderField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
 
         $staleInfoWrapper = Wrapper::create($staleInfoField);
         $staleInfoWrapper->displayIf('CacheDuration')->isEqualTo('maxage')->end();
 
-        $draftReductionHeaderField = HeaderField::create('DraftCacheReductionHeader', 'Unpublished changes', 3)->addExtraClass('ps-3');
-        $draftReductionHeaderField->displayIf('CacheDuration')->isEqualTo('maxage');
+        $draftReductionHeaderField = Wrapper::create(HeaderField::create('DraftCacheReductionHeader', 'Unpublished changes', 3));
+        $draftReductionHeaderField->displayIf('CacheDuration')->isEqualTo('maxage')->end();
 
         $draftReductionField = CheckboxField::create(
             'EnableDraftCacheReduction',
@@ -266,7 +267,7 @@ class CacheControlSiteConfigExtension extends Extension
         // Main cache control settings in a collapsible section
         $cacheControlSection = ToggleCompositeField::create('CacheControlSettings', 'Cache-Control Header (Advanced)',
             [
-                HeaderField::create('CacheTypeHeader', 'Cache type and duration', 3)->addExtraClass('ps-3'),
+                Wrapper::create(HeaderField::create('CacheTypeHeader', 'Cache type and duration', 3)),
                 $cacheTypeWrapper,
                 $cacheDurationWrapper,
                 $maxAgeHeaderField,

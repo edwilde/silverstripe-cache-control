@@ -200,15 +200,13 @@ class CacheControlPageExtension extends Extension
         if ($this->owner->config()->get('enable_cache_inheritance')) {
             $applyToChildrenField = CheckboxField::create('ApplyCacheToChildren', 'Apply to child pages')
                 ->setDescription(
-                    'These cache settings will apply to all descendant pages unless they have their own cache control override. '
-                    . 'Child pages will show these settings as inherited. '
-                    . 'Any grace periods set here apply to every descendant page too.'
+                    'Descendant pages without their own override use these settings, grace periods included.'
                 );
         }
 
         $pageHeaderField = HeaderField::create('PageCacheControlHeader', 'Page-Specific Cache Settings', 3);
         $pageInfoField = LiteralField::create('PageCacheControlInfo',
-            '<p class="message info">These settings will only apply to this page and override the site-wide cache settings.</p>'
+            '<p class="message info">These settings apply to this page only.</p>'
         );
         $enableCacheField = CheckboxField::create('EnableCacheControl', 'Enable Cache Control for this Page')
             ->setDescription('Turn on cache control headers for this page.');
@@ -227,45 +225,42 @@ class CacheControlPageExtension extends Extension
             '3600' => '1 hour (3600 seconds)',
             '86400' => '1 day (86400 seconds)',
             'custom' => 'Custom (specify in seconds)',
-        ])->setDescription(
-            'How long visitors\' browsers keep a copy of the page. CDNs use the same time unless '
-            . 'you set a CDN cache duration below.'
-        );
+        ])->setDescription('How long browsers keep a copy. CDNs use this too, unless a CDN cache duration is set.');
         $maxAgeField = NumericField::create('MaxAge', 'Custom Max Age (seconds)')
-            ->setDescription('Enter a custom cache duration in seconds.')
+            ->setDescription('In seconds.')
             ->setAttribute('placeholder', '120');
+        $maxAgeHeaderField = HeaderField::create('PageMaxAgeHeader', 'Browser cache', 3)->addExtraClass('ps-3 mt-3');
+        $sharedMaxAgeHeaderField = HeaderField::create('PageSharedMaxAgeHeader', 'Content Delivery Network (CDN) cache', 3)->addExtraClass('ps-3');
         $sharedMaxAgeInfoField = SharedMaxAge::infoField('PageSharedMaxAgeInfo');
         $sharedMaxAgePresetField = DropdownField::create(
             'SharedMaxAgePreset',
             'CDN Cache Duration',
             SharedMaxAge::presetOptions()
-        )->setDescription(
-            'How long the CDN may keep its copy. Browsers ignore this. Usually longer than the Max '
-            . 'Age Duration: a shorter time makes the CDN fetch a fresh copy more often than browsers do.'
-        );
+        )->setDescription('Browsers ignore this. Usually longer than the max age.');
         $sharedMaxAgeField = NumericField::create('SharedMaxAge', 'Custom CDN Cache Duration (seconds)')
-            ->setDescription('Enter a custom CDN cache duration in seconds, up to one year (31536000).')
+            ->setDescription('In seconds, up to one year (31536000).')
             ->setAttribute('placeholder', '604800');
+        $staleHeaderField = HeaderField::create('PageStaleDirectivesHeader', 'Grace periods', 3)->addExtraClass('ps-3');
         $staleInfoField = StaleDirectives::infoField('PageStaleDirectivesInfo');
         $staleWhileRevalidatePresetField = DropdownField::create(
             'StaleWhileRevalidatePreset',
             'Refresh Grace Period',
             StaleDirectives::refreshPresetOptions()
-        )->setDescription('How long caches may serve the expired copy while fetching a fresh one in the background.');
+        )->setDescription('Serve the old copy straight away while a fresh one is fetched in the background.');
         $staleWhileRevalidateField = NumericField::create('StaleWhileRevalidate', 'Custom Refresh Grace Period (seconds)')
-            ->setDescription('Enter a custom refresh grace period in seconds, up to one year (31536000).')
+            ->setDescription('In seconds, up to one year (31536000).')
             ->setAttribute('placeholder', '86400');
         $staleIfErrorPresetField = DropdownField::create(
             'StaleIfErrorPreset',
             'Error Grace Period',
             StaleDirectives::errorPresetOptions()
-        )->setDescription('How long caches may keep serving the stored copy while the server returns errors.');
+        )->setDescription('Keep serving the stored copy while your server returns errors.');
         $staleIfErrorField = NumericField::create('StaleIfError', 'Custom Error Grace Period (seconds)')
-            ->setDescription('Enter a custom error grace period in seconds, up to one year (31536000).')
+            ->setDescription('In seconds, up to one year (31536000).')
             ->setAttribute('placeholder', '604800');
-        $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Enable Must Revalidate')
-            ->setDescription('Force browsers to check with the server when cache expires, rather than using stale content. '
-                . 'Not available while a grace period is set, which asks caches to do the opposite.');
+        $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Always check for a newer version once the cache expires')
+            ->setDescription('Recommended. Browsers ask your server before reusing an expired copy. '
+                . 'Hidden while a grace period is set.');
 
         // Always set field values explicitly so editors see accurate values regardless of
         // whether the fields are inside wrappers or composite fields.
@@ -362,17 +357,32 @@ class CacheControlPageExtension extends Extension
             ->andIf('StaleWhileRevalidatePreset')->isEqualTo(StaleDirectives::PRESET_OFF)
             ->andIf('StaleIfErrorPreset')->isEqualTo(StaleDirectives::PRESET_OFF);
 
+        // Section headings follow the visibility of the fields beneath them.
+        $maxAgeHeaderField->displayIf('CacheDuration')->isEqualTo('maxage');
+
+        $sharedMaxAgeHeaderField->displayIf('CacheType')->isEqualTo('public')
+            ->andIf('CacheDuration')->isEqualTo('maxage');
+
+        $staleHeaderField->displayIf('CacheDuration')->isEqualTo('maxage');
+
+        $staleInfoWrapper = Wrapper::create($staleInfoField);
+        $staleInfoWrapper->displayIf('CacheDuration')->isEqualTo('maxage')->end();
+
         // Group page-specific settings in a collapsible section
         $pageCacheControlSection = ToggleCompositeField::create('PageCacheControlSettings', 'Cache-Control Header (Advanced)',
             [
+                HeaderField::create('PageCacheTypeHeader', 'Cache type and duration', 3)->addExtraClass('ps-3'),
                 $cacheTypeWrapper,
                 $cacheDurationWrapper,
+                $maxAgeHeaderField,
                 $maxAgePresetField,
                 $maxAgeField,
+                $sharedMaxAgeHeaderField,
                 $sharedMaxAgeInfoField,
                 $sharedMaxAgePresetField,
                 $sharedMaxAgeField,
-                $staleInfoField,
+                $staleHeaderField,
+                $staleInfoWrapper,
                 StaleDirectives::privateNoticeField('PageStaleDirectivesPrivateNotice'),
                 $staleWhileRevalidatePresetField,
                 $staleWhileRevalidateField,

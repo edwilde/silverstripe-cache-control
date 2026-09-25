@@ -114,11 +114,9 @@ final class SharedMaxAge
     public static function infoField(string $name): Wrapper
     {
         $notice = Wrapper::create(LiteralField::create($name,
-            '<p class="message notice">A CDN is the network that stores copies of your pages close to '
-            . 'visitors. By default it keeps its copy for the same time as the browser. A longer CDN cache '
-            . 'duration means fewer requests reach your server, but changes only appear once the CDN\'s copy '
-            . 'runs out, unless your CDN is cleared when you publish. Leave this off unless you know your CDN '
-            . 'is cleared on publish.</p>'
+            '<p class="message notice">A CDN keeps copies of your pages close to visitors. A longer CDN time '
+            . 'means fewer requests reach your server, but changes wait for the CDN\'s copy to expire. Only set '
+            . 'this if your CDN is cleared when you publish.</p>'
         ));
         $notice->displayIf('CacheType')->isEqualTo('public')
             ->andIf('CacheDuration')->isEqualTo('maxage')

@@ -258,7 +258,7 @@ class CacheControlPageExtension extends Extension
         $staleIfErrorField = NumericField::create('StaleIfError', 'Custom Error Grace Period (seconds)')
             ->setDescription('In seconds, up to one year (31536000).')
             ->setAttribute('placeholder', '604800');
-        $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Always check for a newer version once the cache expires')
+        $mustRevalidateField = CheckboxField::create('EnableMustRevalidate', 'Must Revalidate - Always check for a newer version once the cache expires')
             ->setDescription('Recommended. Browsers ask your server before reusing an expired copy. '
                 . 'Hidden while a grace period is set.');
 

@@ -63,7 +63,7 @@ Navigate to **Settings > Cache Control** in the CMS to configure default cache h
 - **Custom Refresh Grace Period**: When "Custom" is selected, enter your own value in seconds, up to one year
 - **Error Grace Period** (`stale-if-error`): How long a CDN may keep serving the stored copy while the server returns errors. Off by default, with presets from 1 hour to 30 days or Custom
 - **Custom Error Grace Period**: When "Custom" is selected, enter your own value in seconds, up to one year
-- **Always check for a newer version once the cache expires** (`must-revalidate`): Force validation when cache expires. Omitted, and hidden in the CMS, whenever a grace period is set
+- **Must Revalidate - Always check for a newer version once the cache expires** (`must-revalidate`): Force validation when cache expires. Omitted, and hidden in the CMS, whenever a grace period is set
 
 ### Vary Header Settings
 

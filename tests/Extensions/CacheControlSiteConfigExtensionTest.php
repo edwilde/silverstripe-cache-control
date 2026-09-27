@@ -3,6 +3,7 @@
 namespace Edwilde\CacheControl\Tests\Extensions;
 
 use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
+use Edwilde\CacheControl\SharedMaxAge;
 use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\SiteConfig\SiteConfig;
@@ -376,5 +377,155 @@ class CacheControlSiteConfigExtensionTest extends SapphireTest
         $siteConfig->StaleIfError = 60;
 
         $this->assertTrue($siteConfig->validate()->isValid());
+    }
+
+    /**
+     * Check the CDN cache duration fields exist inside the advanced toggle, after MaxAge.
+     */
+    public function testSharedMaxAgeFieldsExist()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $fields = $siteConfig->getCMSFields();
+
+        $this->assertNotNull($fields->dataFieldByName('SharedMaxAgePreset'));
+        $this->assertNotNull($fields->dataFieldByName('SharedMaxAge'));
+
+        $names = array_keys($fields->dataFields());
+        $maxAgeIndex = array_search('MaxAge', $names, true);
+        $presetIndex = array_search('SharedMaxAgePreset', $names, true);
+        $customIndex = array_search('SharedMaxAge', $names, true);
+
+        $this->assertNotFalse($maxAgeIndex);
+        $this->assertGreaterThan($maxAgeIndex, $presetIndex, 'CDN preset should sit after MaxAge');
+        $this->assertGreaterThan($presetIndex, $customIndex, 'CDN custom field should sit after the preset');
+    }
+
+    /**
+     * Check the CDN cache duration preset defaults to off.
+     */
+    public function testSharedMaxAgeDefaultsOff()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $this->assertEquals(SharedMaxAge::PRESET_OFF, $siteConfig->SharedMaxAgePreset);
+        $this->assertEquals(0, $siteConfig->SharedMaxAge);
+    }
+
+    /**
+     * Check the preview inserts s-maxage after max-age when public and a CDN duration is set.
+     */
+    public function testGetCacheControlHeaderWithSharedMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $this->assertEquals(
+            'public, max-age=300, s-maxage=604800, must-revalidate',
+            $siteConfig->getCacheControlHeader()
+        );
+    }
+
+    /**
+     * Check the preview omits s-maxage when the CDN duration is off.
+     */
+    public function testGetCacheControlHeaderOmitsSharedMaxAgeWhenOff()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = SharedMaxAge::PRESET_OFF;
+        $siteConfig->write();
+
+        $this->assertStringNotContainsString('s-maxage', $siteConfig->getCacheControlHeader());
+    }
+
+    /**
+     * Check the preview omits s-maxage for a private cache type.
+     */
+    public function testGetCacheControlHeaderOmitsSharedMaxAgeWhenPrivate()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'private';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $this->assertStringNotContainsString('s-maxage', $siteConfig->getCacheControlHeader());
+    }
+
+    /**
+     * Check the preview omits s-maxage for no-store.
+     */
+    public function testGetCacheControlHeaderOmitsSharedMaxAgeWithNoStore()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'nostore';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $this->assertEquals('no-store', $siteConfig->getCacheControlHeader());
+    }
+
+    /**
+     * Check the preview combines s-maxage with a refresh grace period.
+     */
+    public function testGetCacheControlHeaderWithSharedMaxAgeAndGracePeriod()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->StaleWhileRevalidatePreset = '3600';
+        $siteConfig->write();
+
+        $this->assertEquals(
+            'public, max-age=300, s-maxage=604800, stale-while-revalidate=3600',
+            $siteConfig->getCacheControlHeader()
+        );
+    }
+
+    /**
+     * Check the preview uses the custom CDN cache duration value.
+     */
+    public function testGetCacheControlHeaderWithCustomSharedMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = SharedMaxAge::PRESET_CUSTOM;
+        $siteConfig->SharedMaxAge = 43200;
+        $siteConfig->write();
+
+        $this->assertEquals(
+            'public, max-age=300, s-maxage=43200, must-revalidate',
+            $siteConfig->getCacheControlHeader()
+        );
+    }
+
+    /**
+     * Check validation rejects a custom CDN cache duration below one second.
+     */
+    public function testValidationRejectsZeroCustomSharedMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->SharedMaxAgePreset = SharedMaxAge::PRESET_CUSTOM;
+        $siteConfig->SharedMaxAge = 0;
+
+        $this->assertFalse($siteConfig->validate()->isValid());
     }
 }

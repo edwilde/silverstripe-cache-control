@@ -4,6 +4,7 @@ namespace Edwilde\CacheControl\Tests\Extensions;
 
 use Edwilde\CacheControl\Extensions\CacheControlPageExtension;
 use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
+use Edwilde\CacheControl\SharedMaxAge;
 use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\Config\Config;
@@ -880,5 +881,142 @@ class CacheControlPageExtensionTest extends SapphireTest
         $child = $this->objFromFixture(SiteTree::class, 'archive_child');
 
         $this->assertStringContainsString('stale-while-revalidate=86400', $child->getCacheControlHeader());
+    }
+
+    /**
+     * Check the CDN cache duration fields exist inside the advanced toggle, after MaxAge.
+     */
+    public function testSharedMaxAgeFieldsExist()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $fields = $page->getCMSFields();
+
+        $this->assertNotNull($fields->dataFieldByName('SharedMaxAgePreset'));
+        $this->assertNotNull($fields->dataFieldByName('SharedMaxAge'));
+
+        $names = array_keys($fields->dataFields());
+        $maxAgeIndex = array_search('MaxAge', $names, true);
+        $presetIndex = array_search('SharedMaxAgePreset', $names, true);
+        $customIndex = array_search('SharedMaxAge', $names, true);
+
+        $this->assertNotFalse($maxAgeIndex);
+        $this->assertGreaterThan($maxAgeIndex, $presetIndex, 'CDN preset should sit after MaxAge');
+        $this->assertGreaterThan($presetIndex, $customIndex, 'CDN custom field should sit after the preset');
+    }
+
+    /**
+     * Check the page preview inserts s-maxage after max-age when overridden with a CDN duration.
+     */
+    public function testGetCacheControlHeaderUsesPageOverrideSharedMaxAge()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '300';
+        $page->SharedMaxAgePreset = '604800';
+        $page->write();
+
+        $this->assertEquals(
+            'public, max-age=300, s-maxage=604800, must-revalidate',
+            $page->getCacheControlHeader()
+        );
+    }
+
+    /**
+     * Check the page preview omits s-maxage for a private cache type.
+     */
+    public function testGetCacheControlHeaderOmitsSharedMaxAgeWhenPrivate()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'private';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '300';
+        $page->SharedMaxAgePreset = '604800';
+        $page->write();
+
+        $this->assertStringNotContainsString('s-maxage', $page->getCacheControlHeader());
+    }
+
+    /**
+     * Check the page fields pre-fill the CDN cache duration from the effective source.
+     */
+    public function testPageFieldsPrefillFromSiteConfigSharedMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $fields = $page->getCMSFields();
+
+        $this->assertEquals(
+            '604800',
+            $fields->dataFieldByName('SharedMaxAgePreset')->getValue(),
+            'A page without an override should show the CDN cache duration it inherits'
+        );
+    }
+
+    /**
+     * Check validation rejects a custom CDN cache duration below one second on Page.
+     */
+    public function testPageValidationRejectsZeroCustomSharedMaxAge()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'page1');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheDuration = 'maxage';
+        $page->SharedMaxAgePreset = SharedMaxAge::PRESET_CUSTOM;
+        $page->SharedMaxAge = 0;
+
+        $this->assertFalse($page->validate()->isValid());
+    }
+
+    /**
+     * Check the page preview omits s-maxage for a no-store cache duration.
+     */
+    public function testGetCacheControlHeaderNoStoreOmitsSharedMaxAge()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'shared_maxage_nostore');
+
+        $this->assertEquals('no-store', $page->getCacheControlHeader());
+    }
+
+    /**
+     * Check the page preview orders s-maxage before a grace period.
+     */
+    public function testGetCacheControlHeaderSharedMaxAgeCombinesWithGracePeriod()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'shared_maxage_with_grace');
+
+        $this->assertEquals(
+            'public, max-age=300, s-maxage=604800, stale-while-revalidate=3600',
+            $page->getCacheControlHeader()
+        );
+    }
+
+    /**
+     * Check an inheriting page's preview shows the ancestor's CDN cache duration.
+     */
+    public function testGetCacheControlHeaderInheritsSharedMaxAgeFromParent()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+        $archive->SharedMaxAgePreset = '604800';
+        $archive->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+
+        $this->assertEquals(
+            'public, max-age=86400, s-maxage=604800, must-revalidate',
+            $child->getCacheControlHeader(),
+            'Child without override should inherit the CDN cache duration from the parent'
+        );
     }
 }

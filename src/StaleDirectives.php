@@ -201,10 +201,8 @@ final class StaleDirectives
     public static function infoField(string $name): LiteralField
     {
         return LiteralField::create($name,
-            '<p class="message notice">Grace periods let a CDN keep serving its stored copy after the max age runs out. '
-            . 'The <strong>refresh grace period</strong> serves that copy instantly while fetching a fresh one in the '
-            . 'background, so no visitor waits for the page to be rebuilt. The <strong>error grace period</strong> keeps '
-            . 'the copy in service while the server is returning errors. Both pair with a short max age.</p>'
+            '<p class="message notice">Grace periods let caches keep serving their copy after the max age runs out, '
+            . 'so visitors never wait on a rebuild or see a server error. They work best with a short max age.</p>'
         );
     }
 
@@ -217,8 +215,8 @@ final class StaleDirectives
     public static function privateNoticeField(string $name): Wrapper
     {
         $notice = Wrapper::create(LiteralField::create($name,
-            '<p class="message notice">With a <strong>private</strong> cache type, CDNs ignore both grace periods: '
-            . 'only the visitor\'s browser applies them, and most browsers ignore the error grace period.</p>'
+            '<p class="message notice">With a <strong>private</strong> cache type, only browsers apply grace '
+            . 'periods, and most ignore the error grace period.</p>'
         ));
         $notice->displayIf('CacheType')->isEqualTo('private')
             ->andIf('CacheDuration')->isEqualTo('maxage')

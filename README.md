@@ -17,6 +17,7 @@ A Silverstripe CMS module that gives content editors control over HTTP Cache-Con
 - **Cache inheritance** - optionally apply cache settings to all descendant pages (opt-in via config)
 - **Stale grace periods** - `stale-while-revalidate` and `stale-if-error` for CDN micro-caching (opt-in per site or page)
 - **CDN cache duration** - `s-maxage` to give CDNs a longer cache lifetime than browsers (opt-in per site or page, public cache type only)
+- **Site policy from YAML** - a versioned set of site-wide defaults applied to every SiteConfig row on `dev/build` (opt-in via config)
 
 ## Version Compatibility
 
@@ -75,6 +76,37 @@ The **Vary Header** section in site-wide settings controls which request headers
 - **Authorization**: Store separate entries based on authentication. Use for protected content.
 
 Vary headers are configured site-wide only — they apply consistently to all pages, including those with page-level cache control overrides.
+
+### Set the site policy from YAML
+
+A project can define the site-wide settings in code, so every environment gets the same policy from `dev/build` instead of someone setting it in the CMS. Add a version and a map of SiteConfig fields to a fragment of your project's config that loads after this module's, for example `app/_config/cache-control.yml`:
+
+```yaml
+---
+Name: app-cache-control
+After:
+  - '#edwilde-cache-control'
+---
+SilverStripe\SiteConfig\SiteConfig:
+  cache_control_defaults_version: 1
+  cache_control_defaults:
+    EnableCacheControl: true
+    CacheType: public
+    MaxAgePreset: 300
+```
+
+- `dev/build` gives every SiteConfig row whose stored version is lower than `cache_control_defaults_version` the values in the map, then stamps the row with that version. Every row is covered, across all subsites when the subsites module is installed.
+- **Bump the version to re-apply.** A row takes the map once per version, so editors can change the settings in the CMS afterwards and a later build at the same version leaves their changes alone.
+- A version bump **overwrites** the listed fields on every row, including changes editors made. Fields that are not in the map are never touched.
+- A row whose stored version is higher than the configured one is left alone.
+- New rows, including the first one on a fresh install, start with the map and the version.
+- Keys are the fields this module adds to SiteConfig: `EnableCacheControl`, `CacheType`, `CacheDuration`, `MaxAge`, `MaxAgePreset`, `SharedMaxAgePreset`, `SharedMaxAge`, `EnableMustRevalidate`, `StaleWhileRevalidatePreset`, `StaleWhileRevalidate`, `StaleIfErrorPreset`, `StaleIfError`, `VaryAcceptEncoding`, `VaryXForwardedProtocol`, `VaryCookie`, `VaryAuthorization` and `EnableDraftCacheReduction`. Preset values can be written as YAML numbers, so `MaxAgePreset: 300` works.
+- An unknown key fails `dev/build`, even when no row is due, and throws whenever a SiteConfig is created while defaults are configured, such as a new subsite or a SiteConfig made in your own tests.
+- When the map gives a due row an invalid value, `dev/build` fails before any row is written, with an error naming the SiteConfig row ID and the field messages. A new row holding an invalid value fails when it is written.
+- Version `0`, the default, or an empty map applies nothing, and keys are not checked.
+
+> [!IMPORTANT]
+> Keep the `After` line. This module's config sets `cache_control_defaults_version: 0`, so a fragment that loads before it is overridden back to 0 and nothing is applied.
 
 ### Page-specific Overrides
 

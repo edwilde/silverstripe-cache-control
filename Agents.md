@@ -19,6 +19,7 @@
 - Optional cache inheritance: a page's settings can apply to all descendants (`enable_cache_inheritance`, off by default)
 - CDN cache duration (`s-maxage`): gives CDNs a longer cache lifetime than browsers, public cache type only
 - Draft cache reduction: pages with unpublished changes get a short max-age until published, which also caps a CDN cache duration
+- Versioned site-wide defaults: a project defines the SiteConfig policy in YAML and `dev/build` applies it to every row whose stored version is lower (`cache_control_defaults_version`, `cache_control_defaults`)
 - Conditional field visibility using DisplayLogic
 - Performance-optimised with minimal database queries
 
@@ -39,6 +40,7 @@
 src/
 ├── StaleDirectives.php                            # Grace-period presets, resolution, validation and CMS notices
 ├── SharedMaxAge.php                               # CDN cache duration (s-maxage) presets, resolution, validation and CMS notice
+├── SiteConfigDefaults.php                         # Versioned project defaults: resolution, key and value validation, assignment to SiteConfig rows
 └── Extensions/
     ├── CacheControlSiteConfigExtension.php       # Site-wide cache settings UI
     ├── CacheControlPageExtension.php             # Page-level override UI
@@ -98,6 +100,7 @@ src/
 'VaryCookie' => 'Boolean'                              // Vary: Cookie (default: false)
 'VaryAuthorization' => 'Boolean'                       // Vary: Authorization (default: false)
 'EnableDraftCacheReduction' => 'Boolean'               // Shorten max-age on pages with unpublished changes (default: true)
+'CacheControlDefaultsVersion' => 'Int'                 // Version of the project defaults last applied to this row (default: 0)
 ```
 
 **SiteTree Table Extensions** (cache type/duration/max-age/CDN-cache-duration/must-revalidate/grace-period fields as SiteConfig, plus):
@@ -109,7 +112,17 @@ src/
 
 Note: Page-level extensions don't include Vary headers - those are site-wide only.
 
-**YAML config** (on `SilverStripe\CMS\Model\SiteTree`): `enable_cache_inheritance` (default `false`) and `draft_cache_max_age` (default `10`).
+**YAML config**: on `SilverStripe\CMS\Model\SiteTree`, `enable_cache_inheritance` (default `false`) and `draft_cache_max_age` (default `10`); on `SilverStripe\SiteConfig\SiteConfig`, `cache_control_defaults_version` (default `0`) and `cache_control_defaults` (default `{}`).
+
+### Versioned Defaults
+
+`Edwilde\CacheControl\SiteConfigDefaults` (a final static helper) applies a project-defined policy to SiteConfig rows. A project sets `cache_control_defaults_version` (int) and `cache_control_defaults` (SiteConfig field name => value) in a fragment that loads `After: '#edwilde-cache-control'`, because this module's YAML sets the version to 0. `CacheControlDefaultsVersion` on each row records the version last applied.
+
+- **Configured** means a version above 0 and a non-empty map. Anything else is a no-op, and keys are not checked.
+- **Build hook**: `CacheControlSiteConfigExtension::onRequireDefaultRecords()` calls `SiteConfigDefaults::applyToAll()`, which assigns the map and the version to every row whose stored version is lower, across all subsites. A higher stored version is left alone. Every due row is assigned and validated before any row is written, so an invalid value throws `ValidationException` naming the row ID and the field messages, with nothing written. If a database error interrupts the writes, rows not yet written keep their lower version and the next build applies them.
+- **New-row hook**: `onAfterPopulateDefaults()` calls `SiteConfigDefaults::assign()` on a new SiteConfig in memory, so the row is written with the map and the version. It does not validate, so an invalid value throws when the row is written. `SiteConfig::requireDefaultRecords()` fires the build hook before it creates the first row, so on a fresh install the build hook finds no rows and the new-row hook covers the first one.
+- **Keys** are the extension's own `$db` fields except `CacheControlDefaultsVersion`. Any other key throws `InvalidArgumentException`, even when no row is due, and on every `SiteConfig::create()` while defaults are configured (new subsite rows, a project's own tests). At version 0 an unknown key is ignored. A field added to the extension's `$db` becomes a valid key with no further change; add it to the key list in the README.
+- **Enums**: `assign()` casts values for enum fields to strings, because the CMS 6 enum validator rejects integers, so YAML `MaxAgePreset: 300` works.
 
 ### Cache Header Generation Logic
 
@@ -268,6 +281,9 @@ After:
 SilverStripe\SiteConfig\SiteConfig:
   extensions:
     - Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension
+  # Versioned project defaults, applied on dev/build (see Versioned Defaults)
+  cache_control_defaults_version: 0
+  cache_control_defaults: {}
 
 SilverStripe\CMS\Model\SiteTree:
   extensions:

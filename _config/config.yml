@@ -20,6 +20,12 @@ SilverStripe\SiteConfig\SiteConfig:
   # A row whose stored version is lower than the configured one receives the map, overwriting those
   # fields, and is stamped with the version, so bump the version to re-apply. This module sets
   # neither key, so version 0 and an empty map, which apply nothing, hold until a project sets them.
+  #
+  # Set to false to remove the site-wide Cache Control tab from the CMS. The stored values keep
+  # driving the headers. Defaults to true; this module does not set it. Pair it with the defaults
+  # above, since a row with caching disabled sends no-store on every page:
+  #
+  # enable_cache_control_site_settings: false
 
 SilverStripe\CMS\Model\SiteTree:
   extensions:
@@ -33,6 +39,11 @@ SilverStripe\CMS\Model\SiteTree:
   # When a page has unpublished draft changes, reduce max-age to this value (seconds).
   # Controlled by the EnableDraftCacheReduction checkbox in SiteConfig.
   draft_cache_max_age: 10
+  # Set to false to remove the page-level Cache Control tab and ignore saved page overrides, so pages
+  # follow the site-wide settings. Defaults to true; this module does not set it. Set it on SiteTree
+  # for every page type, or on one page class to turn it off for that class only:
+  #
+  # enable_cache_control_page_settings: false
 
 # Apply our controller extension to apply CMS settings
 SilverStripe\CMS\Controllers\ContentController:

@@ -46,7 +46,7 @@ class CacheControlContentControllerExtension extends Extension
         }
 
         // Resolve effective cache settings from page override, ancestor, or site config
-        if ($page->OverrideCacheControl && $page->hasExtension(CacheControlPageExtension::class)) {
+        if ($page->hasExtension(CacheControlPageExtension::class) && $page->hasActiveCacheOverride()) {
             $this->applyPageSettings($page);
         } elseif ($page->hasExtension(CacheControlPageExtension::class)
             && ($ancestor = $page->findInheritedCacheSource())

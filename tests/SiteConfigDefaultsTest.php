@@ -20,16 +20,13 @@ class SiteConfigDefaultsTest extends SapphireTest
     ];
 
     /**
-     * Set the configured defaults version and field map for the current test
-     *
-     * @param int $version The configured defaults version
-     * @param array<string, mixed> $defaults The configured field map
-     * @return void
+     * Start every test with no defaults configured
      */
-    private function configure(int $version, array $defaults): void
+    protected function setUp(): void
     {
-        Config::modify()->set(SiteConfig::class, 'cache_control_defaults_version', $version);
-        Config::modify()->set(SiteConfig::class, 'cache_control_defaults', $defaults);
+        parent::setUp();
+
+        DefaultsConfig::set(0, []);
     }
 
     /**
@@ -52,7 +49,7 @@ class SiteConfigDefaultsTest extends SapphireTest
      */
     public function testUnknownKeyThrowsAndNamesTheKey(): void
     {
-        $this->configure(1, ['NotARealField' => 'x']);
+        DefaultsConfig::set(1, ['NotARealField' => 'x']);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('NotARealField');
@@ -65,10 +62,23 @@ class SiteConfigDefaultsTest extends SapphireTest
      */
     public function testVersionFieldIsRejectedAsAKey(): void
     {
-        $this->configure(1, ['CacheControlDefaultsVersion' => 5]);
+        DefaultsConfig::set(1, ['CacheControlDefaultsVersion' => 5]);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('CacheControlDefaultsVersion');
+
+        SiteConfigDefaults::configuredDefaults();
+    }
+
+    /**
+     * Check a core SiteConfig field the module does not own throws and the message names it
+     */
+    public function testCoreSiteConfigFieldIsRejectedAsAKey(): void
+    {
+        DefaultsConfig::set(1, ['Title' => 'Renamed']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unknown key "Title"');
 
         SiteConfigDefaults::configuredDefaults();
     }
@@ -97,7 +107,7 @@ class SiteConfigDefaultsTest extends SapphireTest
             'VaryAuthorization' => true,
             'EnableDraftCacheReduction' => false,
         ];
-        $this->configure(1, $defaults);
+        DefaultsConfig::set(1, $defaults);
 
         $this->assertSame($defaults, SiteConfigDefaults::configuredDefaults());
     }
@@ -117,7 +127,7 @@ class SiteConfigDefaultsTest extends SapphireTest
      */
     public function testPositiveVersionWithAMapIsConfigured(): void
     {
-        $this->configure(1, ['CacheType' => 'private']);
+        DefaultsConfig::set(1, ['CacheType' => 'private']);
 
         $this->assertTrue(SiteConfigDefaults::isConfigured());
     }
@@ -127,10 +137,10 @@ class SiteConfigDefaultsTest extends SapphireTest
      */
     public function testVersionBelowOneIsNotConfigured(): void
     {
-        $this->configure(0, ['CacheType' => 'private']);
+        DefaultsConfig::set(0, ['CacheType' => 'private']);
         $this->assertFalse(SiteConfigDefaults::isConfigured());
 
-        $this->configure(-1, ['CacheType' => 'private']);
+        DefaultsConfig::set(-1, ['CacheType' => 'private']);
         $this->assertFalse(SiteConfigDefaults::isConfigured());
     }
 
@@ -139,7 +149,7 @@ class SiteConfigDefaultsTest extends SapphireTest
      */
     public function testEmptyMapIsNotConfigured(): void
     {
-        $this->configure(2, []);
+        DefaultsConfig::set(2, []);
 
         $this->assertFalse(SiteConfigDefaults::isConfigured());
     }
@@ -149,7 +159,7 @@ class SiteConfigDefaultsTest extends SapphireTest
      */
     public function testUnknownKeyIsIgnoredAtVersionZero(): void
     {
-        $this->configure(0, ['NotARealField' => 'x']);
+        DefaultsConfig::set(0, ['NotARealField' => 'x']);
 
         $this->assertFalse(SiteConfigDefaults::isConfigured());
     }
@@ -160,7 +170,7 @@ class SiteConfigDefaultsTest extends SapphireTest
     public function testRowIsDueOnlyWhileItsStoredVersionIsLower(): void
     {
         $row = SiteConfig::create();
-        $this->configure(2, ['CacheType' => 'private']);
+        DefaultsConfig::set(2, ['CacheType' => 'private']);
 
         $row->CacheControlDefaultsVersion = 0;
         $this->assertTrue(SiteConfigDefaults::isDue($row));
@@ -181,7 +191,7 @@ class SiteConfigDefaultsTest extends SapphireTest
     public function testIntegerEnumValueIsAssignedAsString(): void
     {
         $row = SiteConfig::create();
-        $this->configure(1, ['MaxAgePreset' => 300]);
+        DefaultsConfig::set(1, ['MaxAgePreset' => 300]);
 
         SiteConfigDefaults::assign($row);
 
@@ -195,7 +205,7 @@ class SiteConfigDefaultsTest extends SapphireTest
     public function testNonEnumValuesAreAssignedAsGiven(): void
     {
         $row = SiteConfig::create();
-        $this->configure(1, ['EnableCacheControl' => true, 'MaxAge' => 600]);
+        DefaultsConfig::set(1, ['EnableCacheControl' => true, 'MaxAge' => 600]);
 
         SiteConfigDefaults::assign($row);
 
@@ -210,7 +220,7 @@ class SiteConfigDefaultsTest extends SapphireTest
     {
         $row = SiteConfig::create();
         $row->VaryCookie = true;
-        $this->configure(3, ['CacheType' => 'private']);
+        DefaultsConfig::set(3, ['CacheType' => 'private']);
 
         SiteConfigDefaults::assign($row);
 
@@ -226,7 +236,7 @@ class SiteConfigDefaultsTest extends SapphireTest
     public function testAssignDoesNothingAtVersionZero(): void
     {
         $row = SiteConfig::create();
-        $this->configure(0, ['CacheType' => 'private']);
+        DefaultsConfig::set(0, ['CacheType' => 'private']);
 
         SiteConfigDefaults::assign($row);
 
@@ -239,11 +249,11 @@ class SiteConfigDefaultsTest extends SapphireTest
     public function testAssignDoesNothingWithAnEmptyMap(): void
     {
         $row = SiteConfig::create();
-        $this->configure(2, []);
+        DefaultsConfig::set(2, []);
 
         SiteConfigDefaults::assign($row);
 
-        $this->assertSame(0, (int)$row->CacheControlDefaultsVersion);
+        $this->assertSame(0, $row->CacheControlDefaultsVersion);
     }
 
     /**
@@ -252,7 +262,7 @@ class SiteConfigDefaultsTest extends SapphireTest
     public function testAssignDoesNotWriteTheRow(): void
     {
         $row = SiteConfig::create();
-        $this->configure(1, ['CacheType' => 'private']);
+        DefaultsConfig::set(1, ['CacheType' => 'private']);
 
         SiteConfigDefaults::assign($row);
 

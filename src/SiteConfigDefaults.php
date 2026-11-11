@@ -92,9 +92,7 @@ final class SiteConfigDefaults
     }
 
     /**
-     * Assign the configured fields and the configured version to a row without writing it.
-     *
-     * Enum values are assigned as strings, the only form the enum validator accepts.
+     * Assign the configured fields and the configured version to a row without writing it, casting enum values to strings.
      *
      * @param SiteConfig $row The row to update in memory
      * @return void
@@ -114,10 +112,7 @@ final class SiteConfigDefaults
     }
 
     /**
-     * Apply the configured defaults to every SiteConfig row whose stored version is lower.
-     *
-     * Each due row is assigned and validated before any row is written, so one invalid row leaves
-     * every row unchanged. Rows are read across all subsites when the subsites module is installed.
+     * Apply the configured defaults to every SiteConfig row whose stored version is lower, writing none unless every due row is valid.
      *
      * @return void
      * @throws InvalidArgumentException When a configured key is not a field the project may set
@@ -136,6 +131,7 @@ final class SiteConfigDefaults
         $dueRows = [];
         $failures = [];
 
+        // Switch off the subsites module's filter, so the rows of every subsite are read.
         $rows = SiteConfig::get()->setDataQueryParam('Subsite.filter', false)->sort('ID');
         foreach ($rows as $row) {
             if (!self::isDue($row)) {

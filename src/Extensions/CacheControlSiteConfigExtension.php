@@ -24,7 +24,9 @@ namespace Edwilde\CacheControl\Extensions;
 use Edwilde\CacheControl\SharedMaxAge;
 use Edwilde\CacheControl\SiteConfigDefaults;
 use Edwilde\CacheControl\StaleDirectives;
+use InvalidArgumentException;
 use SilverStripe\Core\Extension;
+use SilverStripe\Core\Validation\ValidationException;
 use SilverStripe\Core\Validation\ValidationResult;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\DropdownField;
@@ -477,6 +479,8 @@ class CacheControlSiteConfigExtension extends Extension
      * Apply the configured defaults to SiteConfig rows below the configured version during dev/build
      *
      * @return void
+     * @throws InvalidArgumentException When a configured key is not a field the project may set
+     * @throws ValidationException When a due row is invalid with the defaults assigned
      */
     public function onRequireDefaultRecords(): void
     {
@@ -487,6 +491,7 @@ class CacheControlSiteConfigExtension extends Extension
      * Give a newly created SiteConfig the configured defaults and version without writing it
      *
      * @return void
+     * @throws InvalidArgumentException When a configured key is not a field the project may set
      */
     public function onAfterPopulateDefaults(): void
     {

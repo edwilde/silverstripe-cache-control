@@ -208,7 +208,7 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
     }
 
     /**
-     * Check a build with an empty map prints no applied message and stamps no version, and the same row takes the version once a map is set
+     * Check a build with an empty map prints no applied message and stamps no version on either stale row, and both rows take the version once a map is set
      */
     public function testEmptyMapPrintsNoAppliedMessageAndStampsNoVersion(): void
     {
@@ -218,11 +218,13 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
 
         $this->assertStringNotContainsString('Applied', $output);
         $this->assertSame(0, (int)$this->reload('first_stale')->CacheControlDefaultsVersion);
+        $this->assertSame(1, (int)$this->reload('second_stale')->CacheControlDefaultsVersion);
 
         DefaultsConfig::set(2, self::DEFAULTS);
         $this->build();
 
         $this->assertSame(2, (int)$this->reload('first_stale')->CacheControlDefaultsVersion);
+        $this->assertSame(2, (int)$this->reload('second_stale')->CacheControlDefaultsVersion);
     }
 
     /**
@@ -426,9 +428,9 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
     }
 
     /**
-     * Check a second build after a fresh install keeps an editor change and applies nothing
+     * Check a second build after a fresh install adds no row, keeps an editor change and the version, and prints no applied message
      */
-    public function testSecondBuildAfterAFreshInstallChangesNothing(): void
+    public function testSecondBuildAfterAFreshInstallKeepsTheEditorChangeAndPrintsNoAppliedMessage(): void
     {
         foreach (SiteConfig::get() as $row) {
             $row->delete();

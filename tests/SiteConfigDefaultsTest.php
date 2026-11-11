@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use SilverStripe\Core\Config\Config;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\SiteConfig\SiteConfig;
+use Symfony\Component\Yaml\Yaml;
 
 class SiteConfigDefaultsTest extends SapphireTest
 {
@@ -42,6 +43,39 @@ class SiteConfigDefaultsTest extends SapphireTest
             [],
             Config::inst()->get(CacheControlSiteConfigExtension::class, 'cache_control_defaults', Config::UNINHERITED)
         );
+    }
+
+    /**
+     * Check the module config sets only the extensions key on SiteConfig, leaving the defaults keys to a project
+     */
+    public function testModuleConfigSetsOnlyTheExtensionsOnSiteConfig(): void
+    {
+        $keys = [];
+        foreach ($this->moduleConfigDocuments() as $document) {
+            $keys = array_merge($keys, array_keys($document[SiteConfig::class] ?? []));
+        }
+
+        $this->assertSame(['extensions'], $keys);
+    }
+
+    /**
+     * Parse each YAML document of the module config file, since Symfony Yaml reads one document at a time
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function moduleConfigDocuments(): array
+    {
+        $contents = (string)file_get_contents(dirname(__DIR__) . '/_config/config.yml');
+
+        $documents = [];
+        foreach (preg_split('/^---[ \t]*$/m', $contents) as $part) {
+            $document = Yaml::parse($part);
+            if (is_array($document)) {
+                $documents[] = $document;
+            }
+        }
+
+        return $documents;
     }
 
     /**

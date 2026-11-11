@@ -6,6 +6,7 @@ use Edwilde\CacheControl\Extensions\CacheControlContentControllerExtension;
 use Edwilde\CacheControl\Extensions\CacheControlPageExtension;
 use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
 use Edwilde\CacheControl\SharedMaxAge;
+use Edwilde\CacheControl\Tests\DefaultsConfig;
 use SilverStripe\CMS\Controllers\ContentController;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\HTTPRequest;
@@ -1055,6 +1056,29 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
 
         $this->assertNull($response->getHeader('Expires'));
         $this->assertStringContainsString('no-store', $response->getHeader('Cache-Control'));
+    }
+
+    /**
+     * A SiteConfig below the configured defaults version sends the configured state and max-age once the build has run.
+     */
+    public function testBuildAppliesConfiguredDefaultsToAPageRequest(): void
+    {
+        SiteTree::config()->set('enable_cache_inheritance', false);
+        DefaultsConfig::set(1, [
+            'EnableCacheControl' => true,
+            'CacheType' => 'public',
+            'MaxAgePreset' => 300,
+            'EnableMustRevalidate' => false,
+        ]);
+
+        SiteConfig::singleton()->requireDefaultRecords();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertSame(HTTPCacheControlMiddleware::STATE_PUBLIC, $middleware->getState());
+        $this->assertSame(300, $middleware->getDirective('max-age'));
     }
 
     /**

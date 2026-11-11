@@ -1,3 +1,12 @@
+SilverStripe\SiteConfig\SiteConfig:
+  stale_site_config:
+    Title: 'Site config below the configured defaults version'
+    CacheControlDefaultsVersion: 0
+    EnableCacheControl: false
+    CacheType: 'private'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '3600'
+    EnableMustRevalidate: true
 SilverStripe\CMS\Model\SiteTree:
   test_page:
     Title: 'Test Cache Control Page'

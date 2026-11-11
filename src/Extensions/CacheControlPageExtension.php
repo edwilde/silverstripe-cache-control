@@ -180,7 +180,7 @@ class CacheControlPageExtension extends Extension
             'HasPendingDraftChanges',
         ]);
 
-        if (!$this->owner->config()->get('enable_cache_control_page_settings')) {
+        if (!$this->pageCacheSettingsEnabled()) {
             return;
         }
 
@@ -486,8 +486,17 @@ class CacheControlPageExtension extends Extension
      */
     public function hasActiveCacheOverride(): bool
     {
-        return (bool)$this->owner->config()->get('enable_cache_control_page_settings')
-            && (bool)$this->owner->OverrideCacheControl;
+        return $this->pageCacheSettingsEnabled() && (bool)$this->owner->OverrideCacheControl;
+    }
+
+    /**
+     * Whether the page Cache Control settings are turned on for this page's class
+     *
+     * @return bool
+     */
+    public function pageCacheSettingsEnabled(): bool
+    {
+        return (bool)$this->owner->config()->get('enable_cache_control_page_settings');
     }
 
     /**
@@ -517,13 +526,16 @@ class CacheControlPageExtension extends Extension
         }
 
         // A page with its page settings turned off does not inherit either.
-        if (!$this->owner->config()->get('enable_cache_control_page_settings')) {
+        if (!$this->pageCacheSettingsEnabled()) {
             return null;
         }
 
         $parent = $this->owner->Parent();
         while ($parent && $parent->exists()) {
-            if ($parent->hasActiveCacheOverride() && $parent->ApplyCacheToChildren) {
+            if ($parent->hasExtension(self::class)
+                && $parent->hasActiveCacheOverride()
+                && $parent->ApplyCacheToChildren
+            ) {
                 return $parent;
             }
             $parent = $parent->Parent();

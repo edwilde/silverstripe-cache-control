@@ -205,7 +205,7 @@ class CacheControlSiteSettingsToggleTest extends SapphireTest
         $output = $this->build();
 
         $this->assertMatchesRegularExpression(
-            '/^ {2}! .*#' . $disabledId . '\b.*Disabled site.*no-store.*cache_control_defaults/m',
+            '/^ {2}! .*#' . $disabledId . '\b.*Disabled site.*no-store.*cache_control_defaults and raise cache_control_defaults_version/m',
             $output
         );
         $this->assertStringNotContainsString('Enabled public site', $output);

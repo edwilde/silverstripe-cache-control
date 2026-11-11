@@ -1,0 +1,9 @@
+SilverStripe\CMS\Model\SiteTree:
+  plain_parent:
+    Title: 'Parent page without the page extension'
+SilverStripe\CMS\Model\RedirectorPage:
+  extended_child:
+    Title: 'Redirector child with the page extension'
+    RedirectionType: 'External'
+    ExternalURL: 'https://example.com'
+    Parent: =>SilverStripe\CMS\Model\SiteTree.plain_parent

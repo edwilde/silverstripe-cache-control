@@ -520,7 +520,8 @@ class CacheControlSiteConfigExtension extends Extension
             DB::alteration_message(
                 sprintf(
                     'Cache Control is disabled on SiteConfig #%d (%s) and its CMS settings are turned off, '
-                    . 'so every page on that site is sent no-store. Enable it with cache_control_defaults.',
+                    . 'so every page on that site is sent no-store. Enable it with cache_control_defaults and raise '
+                    . 'cache_control_defaults_version, because a row already at that version keeps its values.',
                     $row->ID,
                     $row->Title
                 ),

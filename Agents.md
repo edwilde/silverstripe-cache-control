@@ -61,7 +61,7 @@ src/
 1. **Request comes in** → nswdpc middleware is registered to intercept
 2. **ContentController initializes** → `CacheControlContentControllerExtension::onAfterInit()` is triggered
 3. **Resolve the effective settings source**:
-   - If `OverrideCacheControl` is enabled → Use page settings (via `applyPageSettings()`)
+   - If `hasActiveCacheOverride()` is true (`OverrideCacheControl` is ticked and `enable_cache_control_page_settings` is on for the page's class) → Use page settings (via `applyPageSettings()`)
    - Else if `enable_cache_inheritance` is on and `findInheritedCacheSource()` returns an ancestor with `ApplyCacheToChildren` → Use that ancestor's settings (via `applyPageSettings($ancestor)`)
    - Otherwise → Use site-wide SiteConfig settings (via `applySiteSettings()`)
 4. **Apply settings** to `HTTPCacheControlMiddleware` singleton:
@@ -113,7 +113,16 @@ src/
 
 Note: Page-level extensions don't include Vary headers - those are site-wide only.
 
-**YAML config**: on `SilverStripe\CMS\Model\SiteTree`, `enable_cache_inheritance` (default `false`) and `draft_cache_max_age` (default `10`); on `SilverStripe\SiteConfig\SiteConfig`, `cache_control_defaults_version` (default `0`) and `cache_control_defaults` (default `{}`).
+**YAML config**: on `SilverStripe\CMS\Model\SiteTree`, `enable_cache_inheritance` (default `false`), `draft_cache_max_age` (default `10`) and `enable_cache_control_page_settings` (default `true`); on `SilverStripe\SiteConfig\SiteConfig`, `cache_control_defaults_version` (default `0`), `cache_control_defaults` (default `{}`) and `enable_cache_control_site_settings` (default `true`). The module's YAML sets none of the switches or defaults keys, so the private statics supply the defaults and a project fragment applies whatever its load order.
+
+### CMS Interface Switches
+
+`enable_cache_control_page_settings` and `enable_cache_control_site_settings` turn the page and site-wide Cache Control interfaces off independently. Headers keep flowing, because neither extension is unregistered and no field is dropped from the schema.
+
+- `CacheControlPageExtension::hasActiveCacheOverride()` is the single gate for saved override data: it is true only when the switch is on for the page's own class (read with `$this->owner->config()`, so a switch set on one page class affects that class only) and `OverrideCacheControl` is set. The controller's `onAfterInit()`, `getCacheControlHeader()`, `findInheritedCacheSource()` (for the page and for each ancestor it walks), `doValidateMaxAge()`, `getEffectiveCacheControlDescription()` and the field pre-fill all use it instead of reading `OverrideCacheControl`. A new reader of the override must do the same.
+- `findInheritedCacheSource()` returns `null` before any `Parent()` query when the page's own switch is off, and skips an ancestor unless that ancestor's `hasActiveCacheOverride()` and `ApplyCacheToChildren` are both true.
+- With a switch off, `updateCMSFields()` removes the scaffolded fields and returns before building the tab. Saved page data is never modified, and draft cache reduction and the `HasPendingDraftChanges` writes are unchanged because they are site-level.
+- `CacheControlSiteConfigExtension::onRequireDefaultRecords()` applies the versioned defaults, then, when the site switch is off, prints a `DB::alteration_message()` of type `error` for every row from `SiteConfigDefaults::allRows()` that has `EnableCacheControl` off, because `applySiteSettings()` sends `no-store` on every page for such a row and nobody can fix it in the CMS.
 
 ### Versioned Defaults
 

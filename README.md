@@ -254,6 +254,25 @@ periods and with draft cache reduction, which caps `s-maxage` to the same short 
 > `PageController::init()`. This keeps the CMS header preview honest, but is a behaviour change
 > for a project that was relying on its own `s-maxage`.
 
+### Turning off the CMS settings
+
+Two switches hide the Cache Control settings from editors, one for each interface. Headers keep flowing from the stored values either way.
+
+```yaml
+SilverStripe\SiteConfig\SiteConfig:
+  enable_cache_control_site_settings: false
+
+SilverStripe\CMS\Model\SiteTree:
+  enable_cache_control_page_settings: false
+```
+
+Both default to `true`. Set them in your project's own config fragment.
+
+- **Page settings** (`enable_cache_control_page_settings`) removes the **Cache Control** tab from pages. Saved page overrides are ignored, so every page follows the site-wide settings, and cache inheritance stops applying. The saved override data is kept and takes effect again when the switch is turned back on. Draft cache reduction still applies, because it is a site-wide setting.
+- **Per page class:** set the page switch on one page class instead of `SiteTree` to turn it off for that class only. A page of that class ignores its own override and does not inherit from an ancestor, and its descendants skip it when they look for an ancestor to inherit from.
+- **Site settings** (`enable_cache_control_site_settings`) removes the **Cache Control** tab from **Settings**. The stored values keep driving the headers.
+- **Turning both off:** pair them with the [versioned defaults](#set-the-site-policy-from-yaml). A SiteConfig row that has caching disabled sends `no-store` on every page, and with the site settings off nobody can change that in the CMS. `dev/build` prints an error for each such row, naming the row, once the defaults have been applied.
+
 ## Cache Control Options Explained
 
 ### Public vs Private

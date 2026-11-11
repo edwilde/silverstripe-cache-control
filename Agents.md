@@ -122,7 +122,7 @@ Note: Page-level extensions don't include Vary headers - those are site-wide onl
 - `CacheControlPageExtension::hasActiveCacheOverride()` is the single gate for saved override data: it is true only when the switch is on for the page's own class (read with `$this->owner->config()`, so a switch set on one page class affects that class only) and `OverrideCacheControl` is set. The controller's `onAfterInit()`, `getCacheControlHeader()`, `findInheritedCacheSource()` (for the page and for each ancestor it walks), `doValidateMaxAge()`, `getEffectiveCacheControlDescription()` and the field pre-fill all use it instead of reading `OverrideCacheControl`. A new reader of the override must do the same.
 - `findInheritedCacheSource()` returns `null` before any `Parent()` query when the page's own switch is off, and skips an ancestor unless that ancestor's `hasActiveCacheOverride()` and `ApplyCacheToChildren` are both true.
 - With a switch off, `updateCMSFields()` removes the scaffolded fields and returns before building the tab. Saved page data is never modified, and draft cache reduction and the `HasPendingDraftChanges` writes are unchanged because they are site-level.
-- `CacheControlSiteConfigExtension::onRequireDefaultRecords()` applies the versioned defaults, then, when the site switch is off, prints a `DB::alteration_message()` of type `error` for every row from `SiteConfigDefaults::allRows()` that has `EnableCacheControl` off, because `applySiteSettings()` sends `no-store` on every page for such a row and nobody can fix it in the CMS.
+- `CacheControlSiteConfigExtension::onRequireDefaultRecords()` applies the versioned defaults, then, when the site switch is off, prints a `DB::alteration_message()` of type `error` for every row from `SiteConfigDefaults::allRows()` that has `EnableCacheControl` off, because `applySiteSettings()` sends `no-store` on every page for such a row and nobody can fix it in the CMS. On a fresh install the first build cannot warn: `SiteConfig::requireDefaultRecords()` fires the build hook before it creates the first row, so the warning first appears on the next build.
 
 ### Versioned Defaults
 
@@ -474,6 +474,7 @@ php -l src/**/*.php  # Check syntax
 
 **Page override not working**:
 - Verify `OverrideCacheControl` checkbox is enabled
+- Check `enable_cache_control_page_settings` has not been turned off for that page's class
 - Page must be published for changes to take effect
 - Check middleware is retrieving correct page instance
 

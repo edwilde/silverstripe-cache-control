@@ -282,6 +282,7 @@ class CacheControlPageSettingsToggleTest extends SapphireTest
 
         $middleware = $this->initialise($page);
 
+        $this->assertSame(HTTPCacheControlMiddleware::STATE_PUBLIC, $middleware->getState());
         $this->assertSame(10, (int)$middleware->getDirective('max-age'));
     }
 

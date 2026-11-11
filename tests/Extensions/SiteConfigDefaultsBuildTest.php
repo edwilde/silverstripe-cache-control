@@ -282,6 +282,22 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
     }
 
     /**
+     * Check a build ignores an unknown key at version zero, and throws for the same map once a version is set
+     */
+    public function testBuildIgnoresAnUnknownKeyAtVersionZero(): void
+    {
+        $this->configure(0, ['NotARealField' => 'x']);
+
+        $this->assertStringNotContainsString('Applied', $this->build());
+
+        $this->configure(2, ['NotARealField' => 'x']);
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->build();
+    }
+
+    /**
      * Check the build prints a message naming each updated row and none for a row it skips
      */
     public function testAlterationMessageNamesEachUpdatedRow(): void

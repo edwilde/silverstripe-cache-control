@@ -1,0 +1,13 @@
+SilverStripe\SiteConfig\SiteConfig:
+  visible:
+    Title: 'Lowest ID, returned by an ordinary query'
+    CacheControlDefaultsVersion: 0
+    EnableCacheControl: false
+    CacheType: 'private'
+    MaxAgePreset: '3600'
+  hidden:
+    Title: 'Higher ID, hidden from an ordinary query'
+    CacheControlDefaultsVersion: 1
+    EnableCacheControl: false
+    CacheType: 'private'
+    MaxAgePreset: '3600'

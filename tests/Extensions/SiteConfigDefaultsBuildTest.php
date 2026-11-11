@@ -449,4 +449,17 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
         $this->assertSame(2, (int)SiteConfig::get()->first()->CacheControlDefaultsVersion);
         $this->assertStringNotContainsString('Applied', $output);
     }
+
+    /**
+     * Check the row source returns an empty list when no row exists, without filtering by an empty set
+     */
+    public function testAllRowsIsEmptyWhenNoRowExists(): void
+    {
+        foreach (SiteConfig::get() as $row) {
+            $row->delete();
+        }
+        $this->assertSame(0, SiteConfig::get()->count());
+
+        $this->assertCount(0, SiteConfigDefaults::allRows());
+    }
 }

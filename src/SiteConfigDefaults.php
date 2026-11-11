@@ -19,8 +19,12 @@ use InvalidArgumentException;
 use SilverStripe\Core\Config\Config;
 use SilverStripe\Core\Validation\ValidationException;
 use SilverStripe\Core\Validation\ValidationResult;
+use SilverStripe\Model\List\ArrayList;
+use SilverStripe\Model\List\SS_List;
+use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DB;
 use SilverStripe\ORM\FieldType\DBEnum;
+use SilverStripe\ORM\Queries\SQLSelect;
 use SilverStripe\SiteConfig\SiteConfig;
 
 /**
@@ -131,9 +135,7 @@ final class SiteConfigDefaults
         $dueRows = [];
         $failures = [];
 
-        // Switch off the subsites module's filter, so the rows of every subsite are read.
-        $rows = SiteConfig::get()->setDataQueryParam('Subsite.filter', false)->sort('ID');
-        foreach ($rows as $row) {
+        foreach (self::allRows() as $row) {
             if (!self::isDue($row)) {
                 continue;
             }
@@ -161,6 +163,26 @@ final class SiteConfigDefaults
                 'changed'
             );
         }
+    }
+
+    /**
+     * Every SiteConfig row in ID order, read by ID so that a per-subsite filter on SiteConfig queries cannot hide one.
+     *
+     * @return SS_List<SiteConfig>
+     */
+    public static function allRows(): SS_List
+    {
+        // The IDs come from the table with no model query, so no query filter applies to them.
+        $table = DataObject::getSchema()->baseDataTable(SiteConfig::class);
+        $ids = SQLSelect::create('"ID"', '"' . $table . '"')->execute()->column();
+
+        // Filtering a list against an empty set throws, so with no rows there is nothing to load.
+        if ($ids === []) {
+            return ArrayList::create();
+        }
+
+        // The subsites module's SiteConfig filter leaves a query that filters on ID alone.
+        return SiteConfig::get()->byIDs($ids)->sort('ID');
     }
 
     /**

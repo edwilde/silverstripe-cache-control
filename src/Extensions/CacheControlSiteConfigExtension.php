@@ -36,6 +36,7 @@ use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\OptionsetField;
 use SilverStripe\Forms\ToggleCompositeField;
+use SilverStripe\ORM\DB;
 use UncleCheese\DisplayLogic\Forms\Wrapper;
 
 /**
@@ -64,6 +65,21 @@ class CacheControlSiteConfigExtension extends Extension
      * @var array<string, mixed>
      */
     private static array $cache_control_defaults = [];
+
+    /**
+     * Whether the site-wide Cache Control settings are in use in the CMS.
+     *
+     * When false, the Cache Control tab is not built on the site settings and the stored values keep
+     * driving the headers. With caching disabled in a stored row, every page is sent no-store, so
+     * pair this with cache_control_defaults. Turn it off in a project's config:
+     *
+     *     SilverStripe\SiteConfig\SiteConfig:
+     *       enable_cache_control_site_settings: false
+     *
+     * @config
+     * @var bool
+     */
+    private static bool $enable_cache_control_site_settings = true;
 
     /**
      * Database fields for site-wide cache control
@@ -124,7 +140,8 @@ class CacheControlSiteConfigExtension extends Extension
      * Add cache control fields to the Site Config CMS
      *
      * Creates a new "Cache Control" tab with fields for site-wide cache settings.
-     * Uses display logic to show/hide fields based on selections.
+     * Uses display logic to show/hide fields based on selections. Adds nothing when the site settings are
+     * turned off.
      *
      * @param FieldList $fields The current CMS fields
      * @return void
@@ -152,6 +169,10 @@ class CacheControlSiteConfigExtension extends Extension
             'VaryAuthorization',
             'EnableDraftCacheReduction',
         ]);
+
+        if (!$this->owner->config()->get('enable_cache_control_site_settings')) {
+            return;
+        }
 
         $cacheTypeField = OptionsetField::create('CacheType', 'Cache Type', [
             'public' => 'Public - Allow browsers and CDNs to cache (recommended for public pages)',
@@ -476,7 +497,8 @@ class CacheControlSiteConfigExtension extends Extension
     }
 
     /**
-     * Apply the configured defaults to SiteConfig rows below the configured version during dev/build
+     * Apply the configured defaults to SiteConfig rows below the configured version during dev/build,
+     * then warn about each row that sends no-store because caching is disabled and the site settings are off
      *
      * @return void
      * @throws InvalidArgumentException When a configured key is not a field the project may set
@@ -485,6 +507,26 @@ class CacheControlSiteConfigExtension extends Extension
     public function onRequireDefaultRecords(): void
     {
         SiteConfigDefaults::applyToAll();
+
+        if ($this->owner->config()->get('enable_cache_control_site_settings')) {
+            return;
+        }
+
+        foreach (SiteConfigDefaults::allRows() as $row) {
+            if ($row->EnableCacheControl) {
+                continue;
+            }
+
+            DB::alteration_message(
+                sprintf(
+                    'Cache Control is disabled on SiteConfig #%d (%s) and its CMS settings are turned off, '
+                    . 'so every page on that site is sent no-store. Enable it with cache_control_defaults.',
+                    $row->ID,
+                    $row->Title
+                ),
+                'error'
+            );
+        }
     }
 
     /**

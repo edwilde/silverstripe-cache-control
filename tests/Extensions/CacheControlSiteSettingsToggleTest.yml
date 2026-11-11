@@ -1,0 +1,24 @@
+SilverStripe\SiteConfig\SiteConfig:
+  site:
+    Title: 'Enabled public site'
+    CacheControlDefaultsVersion: 0
+    EnableCacheControl: true
+    CacheType: 'public'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '300'
+    EnableMustRevalidate: false
+  disabled_site:
+    Title: 'Disabled site'
+    CacheControlDefaultsVersion: 0
+    EnableCacheControl: false
+SilverStripe\CMS\Model\SiteTree:
+  plain_page:
+    Title: 'Page with no override'
+  override_page:
+    Title: 'Page with a private override'
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'private'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '600'
+    EnableMustRevalidate: false

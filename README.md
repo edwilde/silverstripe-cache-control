@@ -140,12 +140,14 @@ The module consists of three main components:
 
 ### HTTP Headers
 
-The module sets the following HTTP headers:
+The following HTTP headers come out of the module's settings:
 
-- **Cache-Control**: The primary caching directive (e.g., `public, max-age=300`)
-- **Expires**: Automatically set to match the Cache-Control max-age for HTTP/1.0 compatibility
+- **Cache-Control**: The primary caching directive (e.g., `public, max-age=300`), set by the module
+- **Expires**: Derived by the framework from the final Cache-Control state, for HTTP/1.0 compatibility
 
-When max-age is specified, the Expires header is calculated as the current time plus the max-age value in GMT format. This ensures compatibility with older HTTP/1.0 caches and proxies while maintaining full HTTP/1.1 Cache-Control support.
+Silverstripe's `HTTPCacheControlMiddleware` writes the Expires header itself, once the response is complete. It uses the current time plus the final max-age, in GMT format, which keeps older HTTP/1.0 caches and proxies working alongside HTTP/1.1 Cache-Control. Error responses and no-store responses have no max-age by then, so they carry no Expires.
+
+This module does not write an Expires header. An Expires header on its own makes a response cacheable under RFC 9111, so one written during controller init would survive an error thrown later in the request and leave the error cacheable.
 
 ### Performance Considerations
 

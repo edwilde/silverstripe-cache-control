@@ -57,7 +57,6 @@ src/
 4. **Apply settings** to `HTTPCacheControlMiddleware` singleton:
    - Set cache state (public/private or disabled)
    - Set cache duration (max-age or no-store)
-   - Add Expires header to match max-age
    - Apply Vary headers based on CMS configuration
 5. **Middleware processes response** → nswdpc module applies configured headers, respecting:
    - Existing headers (doesn't override)
@@ -113,12 +112,14 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
 
 ### HTTP Headers Applied
 
-The module applies the following HTTP headers:
+The module's settings produce the following HTTP headers:
 
-1. **Cache-Control**: The primary header controlling cache behavior (HTTP/1.1+)
-2. **Expires**: Set to match Cache-Control max-age for HTTP/1.0 compatibility
+1. **Cache-Control**: The primary header controlling cache behavior (HTTP/1.1+), set by the module
+2. **Expires**: Derived by the framework from the final Cache-Control state, for HTTP/1.0 compatibility
 
-**Expires Header**: When max-age is set, the Expires header is automatically calculated as `current_time + max-age` in GMT format. This ensures compatibility with older HTTP/1.0 caches and proxies. Per the HTTP specification, Cache-Control takes precedence over Expires in HTTP/1.1 clients, but both should be present for maximum compatibility.
+**Expires Header**: The module never writes this header. `HTTPCacheControlMiddleware` adds it after the response is complete, as `current_time + max-age` in GMT format, and omits it where the final state has no max-age. That covers error responses, redirects and no-store responses. Per the HTTP specification, Cache-Control takes precedence over Expires in HTTP/1.1 clients, but both should be present for maximum compatibility.
+
+Writing Expires any earlier is unsafe. An Expires header on its own makes a response cacheable under RFC 9111, so one set during controller init survives an error thrown later in the request and leaves the error cacheable. It also blocks the framework's own value, because `applyToResponse()` only adds a header when the response does not already carry one.
 
 ## Development Guide
 

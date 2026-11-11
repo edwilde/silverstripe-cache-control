@@ -7,8 +7,11 @@ use Edwilde\CacheControl\Extensions\CacheControlPageExtension;
 use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
 use SilverStripe\CMS\Controllers\ContentController;
 use SilverStripe\CMS\Model\SiteTree;
+use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\Middleware\HTTPCacheControlMiddleware;
+use SilverStripe\Control\Session;
 use SilverStripe\Dev\SapphireTest;
+use SilverStripe\ORM\FieldType\DBDatetime;
 use SilverStripe\SiteConfig\SiteConfig;
 
 class CacheControlContentControllerExtensionTest extends SapphireTest
@@ -291,5 +294,94 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             $middleware->getState(),
             'Should use site config (private) not parent (public) when config disabled'
         );
+    }
+
+    /**
+     * Init never writes Expires on site settings, so the framework can set it from the final state.
+     */
+    public function testSiteSettingsLeaveExpiresUnset()
+    {
+        $this->writePublicSiteSettings();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $this->assertNull($controller->getResponse()->getHeader('Expires'));
+    }
+
+    /**
+     * Init never writes Expires on a page override, so the framework can set it from the final state.
+     */
+    public function testPageOverrideLeavesExpiresUnset()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '300';
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $this->assertNull($controller->getResponse()->getHeader('Expires'));
+    }
+
+    /**
+     * The framework middleware sets Expires on a finished response from the module's max-age.
+     */
+    public function testFrameworkSetsExpiresFromModuleMaxAge()
+    {
+        DBDatetime::set_mock_now('2026-01-01 00:00:00');
+        $this->writePublicSiteSettings();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $response = $controller->getResponse();
+        $this->getMiddleware()->applyToResponse($response);
+
+        $this->assertSame('Thu, 01 Jan 2026 00:05:00 GMT', $response->getHeader('Expires'));
+        $this->assertStringContainsString('max-age=300', $response->getHeader('Cache-Control'));
+    }
+
+    /**
+     * An error after init comes out of the framework middleware with no Expires and an uncacheable Cache-Control.
+     */
+    public function testErrorResponseCarriesNoExpires()
+    {
+        $this->writePublicSiteSettings();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $request = new HTTPRequest('GET', '/');
+        $request->setSession(new Session([]));
+
+        $response = $this->getMiddleware()->process($request, function () use ($page) {
+            $controller = ContentController::create($page);
+            $controller->doInit();
+            $controller->getResponse()->setStatusCode(500);
+
+            return $controller->getResponse();
+        });
+
+        $this->assertNull($response->getHeader('Expires'));
+        $this->assertStringContainsString('no-store', $response->getHeader('Cache-Control'));
+    }
+
+    /**
+     * Turn on public site-wide caching with a 300-second max-age.
+     *
+     * @return void
+     */
+    protected function writePublicSiteSettings(): void
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->write();
     }
 }

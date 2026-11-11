@@ -15,6 +15,8 @@ A Silverstripe CMS module that gives content editors control over HTTP Cache-Con
 - **Performance optimised** - minimal database queries
 - **Sensible defaults** - 120 seconds cache time
 - **Cache inheritance** - optionally apply cache settings to all descendant pages (opt-in via config)
+- **Stale grace periods** - `stale-while-revalidate` and `stale-if-error` for CDN micro-caching (opt-in per site or page)
+- **CDN cache duration** - `s-maxage` to give CDNs a longer cache lifetime than browsers (opt-in per site or page, public cache type only)
 
 ## Version Compatibility
 
@@ -55,7 +57,13 @@ Navigate to **Settings > Cache Control** in the CMS to configure default cache h
 - **Cache Duration**: Choose between Max Age (time-based caching) or No Store (no caching)
 - **Max Age Duration**: Select from common preset durations (2 min, 5 min, 10 min, 1 hour, 1 day) or choose Custom
 - **Custom Max Age**: When "Custom" is selected, enter your own cache duration in seconds
-- **Enable Must Revalidate**: Force validation when cache expires (recommended)
+- **CDN Cache Duration** (`s-maxage`): How long a CDN may keep its copy, separately from the browser max age. Off by default (CDNs use the same time as Max Age Duration), with presets from 5 minutes to 30 days or Custom. Shown only when the cache type is Public
+- **Custom CDN Cache Duration**: When "Custom" is selected, enter your own value in seconds, up to one year
+- **Refresh Grace Period** (`stale-while-revalidate`): How long a CDN may serve the expired copy while fetching a fresh one in the background. Off by default, with presets from 5 minutes to 7 days or Custom
+- **Custom Refresh Grace Period**: When "Custom" is selected, enter your own value in seconds, up to one year
+- **Error Grace Period** (`stale-if-error`): How long a CDN may keep serving the stored copy while the server returns errors. Off by default, with presets from 1 hour to 30 days or Custom
+- **Custom Error Grace Period**: When "Custom" is selected, enter your own value in seconds, up to one year
+- **Must Revalidate - Always check for a newer version once the cache expires** (`must-revalidate`): Force validation when cache expires. Omitted, and hidden in the CMS, whenever a grace period is set
 
 ### Vary Header Settings
 
@@ -100,6 +108,9 @@ Once enabled:
 
 All descendant pages that don't have their own cache override will now use the parent's cache settings. The Cache Control tab on each child page will show the inherited source (e.g., "inherited from Archive").
 
+Descendants inherit the cache type, the cache duration, max age, must-revalidate, and both grace
+periods. Vary headers are site-wide and never inherit from a page.
+
 **How inheritance resolves:**
 
 1. If a page has its own cache override → uses its own settings
@@ -138,6 +149,82 @@ SilverStripe\CMS\Model\SiteTree:
 > [!NOTE]
 > The draft detection uses a flag set at save time, not a per-request database query. This means zero performance overhead at request time.
 
+### Stale Content Grace Periods
+
+A grace period lets a CDN keep serving its stored copy after the max age runs out, instead of
+holding every visitor while PHP rebuilds the page. Two directives control this, and both are
+**off by default** — no header changes until an editor opts in.
+
+The recommended starting recipe pairs a short max age with a long grace period:
+
+```
+Cache-Control: public, max-age=120, stale-while-revalidate=3600, stale-if-error=604800
+```
+
+- **`max-age=120`** collapses traffic spikes. Every visitor in the same two minutes is served
+  from one PHP render.
+- **`stale-while-revalidate=3600`** lets the CDN serve the expired copy instantly for up to an
+  hour while it fetches a fresh one in the background. No visitor waits for the origin, and a
+  stampede at expiry becomes a single request.
+- **`stale-if-error=604800`** tells the CDN to discard a 5xx or a timeout and keep serving the
+  last good copy for up to a week. Without it, `stale-while-revalidate` will cache an error page
+  and serve it onward.
+
+Set both in **Settings > Cache Control > Cache-Control Header (Advanced)**, or per page on the
+page's own Cache Control tab.
+
+> [!IMPORTANT]
+> Enabling either grace period removes `must-revalidate` from the header, and the checkbox is
+> hidden while one is set. `must-revalidate` forbids reusing a stale response without
+> revalidating, which is exactly what a grace period asks a cache to do, so a header carrying
+> both has no grace period at all.
+
+A refresh grace period of a day or more is the aggressive variant. It only makes sense with a CDN
+purge on publish, which this module does not provide — without one, a low-traffic page can serve
+its previous copy to the first visitor after a publish.
+
+> [!WARNING]
+> While the origin is returning errors, `stale-if-error` keeps the CDN serving the last public
+> copy even after the page is unpublished or its viewing permissions are tightened. That copy stays
+> in service until the error grace period runs out or the CDN is purged.
+
+With a `private` cache type, CDNs ignore both grace periods. Only the visitor's browser applies
+them, and most browsers ignore `stale-if-error`.
+
+Draft cache reduction lowers `max-age` but leaves the grace periods untouched, so a page with
+unpublished changes revalidates every 10 seconds while the CDN continues to answer instantly
+from its stored copy.
+
+> [!NOTE]
+> Cloudflare, Fastly, Akamai and Varnish honour RFC 5861. Some CDN and WAF products ignore
+> `stale-if-error`. The module emits the directives; acting on them is up to the edge.
+
+### CDN Cache Duration
+
+By default, a CDN keeps its copy for the same time as the browser (`max-age`). The CDN cache
+duration setting gives the CDN a longer lifetime of its own, via `s-maxage`, which browsers
+ignore:
+
+```
+Cache-Control: public, max-age=300, s-maxage=604800
+```
+
+Here browsers revalidate after 5 minutes, but the CDN keeps serving its copy for 7 days. This
+only makes sense when the CDN is cleared on publish — otherwise a visitor can see a stale page
+for as long as the CDN cache duration allows. It only applies to a **public** cache type; a
+private page never emits `s-maxage`.
+
+Set it in **Settings > Cache Control > Cache-Control Header (Advanced)**, or per page on the
+page's own Cache Control tab, directly under Max Age Duration. It combines with the stale grace
+periods and with draft cache reduction, which caps `s-maxage` to the same short value as
+`max-age` while a page has unpublished changes.
+
+> [!IMPORTANT]
+> Turning on cache control in the CMS with no CDN cache duration set removes any `s-maxage`
+> already present on the response — for example one added by project code in
+> `PageController::init()`. This keeps the CMS header preview honest, but is a behaviour change
+> for a project that was relying on its own `s-maxage`.
+
 ## Cache Control Options Explained
 
 ### Public vs Private
@@ -153,11 +240,20 @@ Specifies how long (in seconds) the content can be cached before it must be reva
 - **1 day** (86400 seconds) - For highly static content
 - **Custom** - Enter your own value in seconds for specific requirements
 
-### Must Revalidate (Recommended)
-Forces browsers to check with the server when the cache expires, rather than serving potentially stale content. **This is enabled by default and recommended for most scenarios** to ensure users receive fresh content when the cache expires.
+### CDN Cache Duration (`s-maxage`)
+How long a CDN may keep its copy, independently of the browser's max age. Off by default, meaning the CDN uses the same time as Max Age Duration. Presets run from 5 minutes to 30 days, plus a custom value in seconds. Public cache type only.
+
+### Stale While Revalidate (Refresh Grace Period)
+How long a cache may serve its expired copy while fetching a fresh one in the background. Presets run from 5 minutes to 7 days, plus a custom value in seconds. Off by default.
+
+### Stale If Error (Error Grace Period)
+How long a cache may keep serving its stored copy while the origin returns errors or times out. Presets run from 1 hour to 30 days, plus a custom value in seconds. Off by default.
+
+### Must Revalidate
+Forces browsers to check with the server when the cache expires, rather than serving potentially stale content. Enabled by default. It is omitted from the header, and hidden in the CMS, whenever a grace period is set.
 
 ### Cache Duration: No Store
-Completely prevents caching. Use for sensitive or rapidly changing content. When "No Store" is selected, all other caching options (max-age, must-revalidate) are ignored and the Cache-Control header will only contain "no-store".
+Completely prevents caching. Use for sensitive or rapidly changing content. When "No Store" is selected, all other caching options (max-age, grace periods, must-revalidate) are ignored and the Cache-Control header will only contain "no-store".
 
 ## Technical Details
 
@@ -173,7 +269,8 @@ The module consists of three main components:
 
 The following HTTP headers come out of the module's settings:
 
-- **Cache-Control**: The primary caching directive (e.g., `public, max-age=300`), set by the module
+- **Cache-Control**: The primary caching directive (e.g., `public, max-age=300`, or
+  `public, max-age=120, stale-while-revalidate=3600, stale-if-error=604800` with grace periods set), set by the module
 - **Expires**: Derived by the framework from the final Cache-Control state, for HTTP/1.0 compatibility
 
 Silverstripe's `HTTPCacheControlMiddleware` writes the Expires header itself, once the response is complete. It uses the current time plus the final max-age, in GMT format, which keeps older HTTP/1.0 caches and proxies working alongside HTTP/1.1 Cache-Control. Error responses and no-store responses have no max-age by then, so they carry no Expires.
@@ -241,6 +338,16 @@ Expected output when cache control is enabled with max-age=300:
 cache-control: public, must-revalidate, max-age=300
 expires: Thu, 18 Dec 2025 05:00:00 GMT
 vary: Accept-Encoding
+```
+
+With both grace periods set, `must-revalidate` is replaced by the two stale directives:
+
+```bash
+curl -sI "https://yoursite.local/page-with-grace-period" | grep -i cache-control
+```
+
+```
+cache-control: public, max-age=120, stale-while-revalidate=3600, stale-if-error=604800
 ```
 
 > [!TIP]

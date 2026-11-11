@@ -16,6 +16,9 @@
 - Public/Private cache type selection (mutually exclusive)
 - Max-age control with sensible 120-second default
 - Must-revalidate and no-store directives
+- Optional cache inheritance: a page's settings can apply to all descendants (`enable_cache_inheritance`, off by default)
+- CDN cache duration (`s-maxage`): gives CDNs a longer cache lifetime than browsers, public cache type only
+- Draft cache reduction: pages with unpublished changes get a short max-age until published, which also caps a CDN cache duration
 - Conditional field visibility using DisplayLogic
 - Performance-optimised with minimal database queries
 
@@ -34,6 +37,8 @@
 
 ```
 src/
+├── StaleDirectives.php                            # Grace-period presets, resolution, validation and CMS notices
+├── SharedMaxAge.php                               # CDN cache duration (s-maxage) presets, resolution, validation and CMS notice
 └── Extensions/
     ├── CacheControlSiteConfigExtension.php       # Site-wide cache settings UI
     ├── CacheControlPageExtension.php             # Page-level override UI
@@ -53,14 +58,18 @@ src/
 
 1. **Request comes in** → nswdpc middleware is registered to intercept
 2. **ContentController initializes** → `CacheControlContentControllerExtension::onAfterInit()` is triggered
-3. **Check for page override**:
+3. **Resolve the effective settings source**:
    - If `OverrideCacheControl` is enabled → Use page settings (via `applyPageSettings()`)
+   - Else if `enable_cache_inheritance` is on and `findInheritedCacheSource()` returns an ancestor with `ApplyCacheToChildren` → Use that ancestor's settings (via `applyPageSettings($ancestor)`)
    - Otherwise → Use site-wide SiteConfig settings (via `applySiteSettings()`)
 4. **Apply settings** to `HTTPCacheControlMiddleware` singleton:
    - Set cache state (public/private or disabled)
    - Set cache duration (max-age or no-store)
-   - Apply Vary headers based on CMS configuration
-5. **Middleware processes response** → nswdpc module applies configured headers, respecting:
+   - Apply the CDN cache duration (`applySharedMaxAge()`): resolve `SharedMaxAge::forSource()` (0 unless the source's `CacheType` is public) and set `s-maxage` on `STATE_PUBLIC` only, so a session downgrade to private never emits it; a resolved value of 0 removes any `s-maxage` set elsewhere on every non-disabled state
+   - Apply `stale-while-revalidate` / `stale-if-error` (`applyStaleDirectives()`) and turn off `must-revalidate` when either is set
+   - Apply Vary headers based on CMS configuration (always read from SiteConfig)
+5. **Draft cache reduction** (`applyDraftCacheReduction()`): if `EnableDraftCacheReduction` is on and the page's `HasPendingDraftChanges` flag is set, `max-age` drops to `draft_cache_max_age` (default 10s), which the framework's `Expires` then follows, and an existing `s-maxage` on `STATE_PUBLIC` is capped to the same value. The flag is written on save and cleared on publish, so this costs no extra query.
+6. **Middleware processes response** → nswdpc module applies configured headers, respecting:
    - Existing headers (doesn't override)
    - Forms on page (disables cache)
    - Error pages (configurable)
@@ -77,19 +86,30 @@ src/
 'CacheDuration' => 'Enum("maxage,nostore","maxage")'  // Duration strategy (default: maxage)
 'MaxAge' => 'Int'                                      // Custom cache duration in seconds (default: 120)
 'MaxAgePreset' => 'Enum(...,"120")'                    // Preset durations: 120, 300, 600, 3600, 86400, custom
-'EnableMustRevalidate' => 'Boolean'                    // Force revalidation (default: true, recommended)
+'SharedMaxAgePreset' => SharedMaxAge::PRESET_ENUM      // CDN cache duration preset: 0 (off), 300, 3600, 86400, 604800, 2592000, custom
+'SharedMaxAge' => 'Int'                                // Custom CDN cache duration in seconds (default: 0)
+'EnableMustRevalidate' => 'Boolean'                    // Force revalidation (default: true; dropped when a grace period is set)
+'StaleWhileRevalidatePreset' => 'Enum(...,"0")'        // Refresh grace period: 0 (off), 300, 3600, 21600, 86400, 604800, custom
+'StaleWhileRevalidate' => 'Int'                        // Custom refresh grace period in seconds (default: 0)
+'StaleIfErrorPreset' => 'Enum(...,"0")'                // Error grace period: 0 (off), 3600, 86400, 604800, 2592000, custom
+'StaleIfError' => 'Int'                                // Custom error grace period in seconds (default: 0)
 'VaryAcceptEncoding' => 'Boolean'                      // Vary: Accept-Encoding (default: true)
 'VaryXForwardedProtocol' => 'Boolean'                  // Vary: X-Forwarded-Protocol (default: false)
 'VaryCookie' => 'Boolean'                              // Vary: Cookie (default: false)
 'VaryAuthorization' => 'Boolean'                       // Vary: Authorization (default: false)
+'EnableDraftCacheReduction' => 'Boolean'               // Shorten max-age on pages with unpublished changes (default: true)
 ```
 
-**SiteTree Table Extensions** (same fields as SiteConfig plus):
+**SiteTree Table Extensions** (cache type/duration/max-age/CDN-cache-duration/must-revalidate/grace-period fields as SiteConfig, plus):
 ```php
 'OverrideCacheControl' => 'Boolean'                    // Enable page-specific override (default: false)
+'ApplyCacheToChildren' => 'Boolean'                    // Descendants inherit this page's settings (default: false; needs enable_cache_inheritance)
+'HasPendingDraftChanges' => 'Boolean'                  // Set on save, cleared on publish; drives draft cache reduction
 ```
 
 Note: Page-level extensions don't include Vary headers - those are site-wide only.
+
+**YAML config** (on `SilverStripe\CMS\Model\SiteTree`): `enable_cache_inheritance` (default `false`) and `draft_cache_max_age` (default `10`).
 
 ### Cache Header Generation Logic
 
@@ -104,13 +124,26 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
      - If `MaxAgePreset` is `'custom'`, use the `MaxAge` field value
      - Otherwise, use the preset value from `MaxAgePreset` (120, 300, 600, 3600, 86400)
      - Defaults to 120 if neither is set
-   - Add `must-revalidate` if `EnableMustRevalidate` is true
+   - Add `s-maxage={n}` when the cache type is public and `SharedMaxAge::forSource()` resolves above 0
+   - Add `stale-while-revalidate={n}` and `stale-if-error={n}` for each grace period resolving above 0 (`StaleDirectives::forSource()`)
+   - Add `must-revalidate` if `EnableMustRevalidate` is true and no grace period is set
 4. **Join directives** with `, ` and return as string
 
 **Example outputs**:
 - `"public, max-age=120"`
 - `"private, max-age=3600, must-revalidate"`
+- `"public, max-age=300, s-maxage=604800, must-revalidate"`
+- `"public, max-age=120, stale-while-revalidate=3600, stale-if-error=604800"`
 - `"no-store"` (ignores all other settings)
+
+**Directive rules worth knowing**:
+- `s-maxage` is emitted on `STATE_PUBLIC` only, via `setStateDirective([STATE_PUBLIC], 's-maxage', ...)`, never via the middleware's `setSharedMaxAge()`. That helper writes all three non-disabled states, so a session downgrade to private would otherwise emit `private, s-maxage=...`, which the private cache type never should. The resolved value is also 0 unless the source's `CacheType` is public, so project code forcing `publicCache(true)` on a private configuration still gets no `s-maxage`, matching the preview.
+- `HTTPCacheControlMiddleware::$allowed_directives` is a `@config` list. `setStateDirective()` throws for any name not in it, so a new directive (e.g. `stale-while-revalidate`, `stale-if-error`) must first be appended to that list in `_config/config.yml`. The framework's own docblock names this as the extension point.
+- `must-revalidate` and the RFC 5861 stale directives are mutually exclusive in effect: `must-revalidate` forbids reusing a stale response without revalidation, so a header carrying both has no grace period. Whenever a stale directive is emitted, `must-revalidate` must be omitted, in both the controller emission and the CMS header preview.
+- The middleware's built-in `stateDirectives` table sets `must-revalidate => true` on every cacheable state, so omitting it means calling `setMustRevalidate(false)`, not just declining to call `setMustRevalidate(true)`.
+- `setStateDirective()` removes a directive only for the value `false`. An integer `0` is stored and rendered as `name=0`, so a grace period of zero must be passed as `false`.
+- `Edwilde\CacheControl\StaleDirectives` resolves the preset/custom pairs for both grace directives and is the single source used by the SiteConfig preview, the Page preview and the controller. It also owns the custom-value range check (`validate()`, 1 second to `MAX_SECONDS`) the editor explainer (`infoField()`) and the private-cache notice (`privateNoticeField()`, shown only while the cache type is private) that both extensions share.
+- `Edwilde\CacheControl\SharedMaxAge` follows the same single-source pattern for the CDN cache duration, reusing `StaleDirectives::resolve()` and `StaleDirectives::MAX_SECONDS` rather than re-implementing the preset/custom logic. Its `infoField()` displays only while the cache type is public and the duration is max-age.
 
 ### HTTP Headers Applied
 
@@ -212,6 +245,12 @@ $wrapper = Wrapper::create($cacheTypeField);
 $wrapper->displayIf('EnableCacheControl')->isChecked()->end();
 ```
 
+**CMS field registration rules**:
+- Call `removeByName()` on every scaffolded field before adding the custom replacement; CMS 6 rejects duplicate names in a `FieldList`.
+- In `CacheControlPageExtension::updateCMSFields()`, every cache field is `setValue()`d explicitly from the effective source (own override, inheriting ancestor, or SiteConfig) so editors see the value the page actually uses before ticking override. New fields must join that block.
+
+**Two header paths, kept in step**: `CacheControlContentControllerExtension` emits the real header via the middleware; `CacheControlSiteConfigExtension::getCacheControlHeader()` and `CacheControlPageExtension::getPageCacheControlHeader()` build the preview shown in the CMS. A directive change that touches one and not the other shows editors a header the site never sends.
+
 **Performance Optimisation**:
 - Middleware checks page override flag first to avoid unnecessary SiteConfig lookups
 - All settings stored as database fields (no complex queries)
@@ -233,11 +272,19 @@ SilverStripe\SiteConfig\SiteConfig:
 SilverStripe\CMS\Model\SiteTree:
   extensions:
     - Edwilde\CacheControl\Extensions\CacheControlPageExtension
+  enable_cache_inheritance: false
+  draft_cache_max_age: 10
 
-# Apply controller extension to set cache headers via nswdpc middleware
+# Apply controller extensions to set cache headers via nswdpc middleware
 SilverStripe\CMS\Controllers\ContentController:
   extensions:
     - Edwilde\CacheControl\Extensions\CacheControlContentControllerExtension
+    - Edwilde\CacheControl\Extensions\DevCacheBypassExtension
+
+# Clear the framework default Vary so the CMS checkboxes are the only source of Vary values
+SilverStripe\Control\Middleware\HTTPCacheControlMiddleware:
+  defaultVary:
+    'X-Forwarded-Protocol': false
 ```
 
 ### Common Development Tasks
@@ -256,16 +303,19 @@ SilverStripe\CMS\Controllers\ContentController:
        ->displayIf('EnableCacheControl')->isChecked()->end()
    ```
 
-3. Update `CacheControlContentControllerExtension` to apply the directive via nswdpc middleware:
+3. Update `CacheControlContentControllerExtension` to apply the directive in both `applyPageSettings()` and `applySiteSettings()`:
    ```php
    if ($config->EnableNewDirective) {
        $middleware->setNewDirective(true);
    }
    ```
+   If the directive is not in `HTTPCacheControlMiddleware::$allowed_directives`, append it via YAML first; `setStateDirective()` throws for unknown names.
 
-4. Add integration tests in `tests/Extensions/` to verify behaviour
+4. Update the editor-facing preview builders `CacheControlSiteConfigExtension::getCacheControlHeader()` and `CacheControlPageExtension::getPageCacheControlHeader()` so the CMS shows what is actually emitted
 
-5. Run dev/build: `vendor/bin/sake dev/build flush=1`
+5. Add integration tests in `tests/Extensions/` to verify behaviour
+
+6. Run dev/build: `vendor/bin/sake dev/build flush=1`
 
 **Debugging Cache Headers**:
 
@@ -352,7 +402,7 @@ Following Semantic Versioning (semver):
 - **MINOR**: New features (backwards compatible)
 - **PATCH**: Bug fixes
 
-Current version: `1.0.0`
+Current version: see `git tag --sort=-v:refname | head -1` (2.x on `main`, 1.x on `cms5`).
 
 ## CI/CD
 
@@ -389,9 +439,8 @@ php -l src/**/*.php  # Check syntax
 - Verify DisplayLogic module is installed
 
 **Tests failing**:
-- Ensure you're in a SilverStripe project for integration tests
-- Unit tests should work standalone
-- Check database configuration for integration tests
+- All tests are `SapphireTest` integration tests and need a Silverstripe environment with a database
+- Controller tests reset `HTTPCacheControlMiddleware` to production-like defaults in `setUp()`; dev-mode config otherwise disables caching and masks failures
 
 **Page override not working**:
 - Verify `OverrideCacheControl` checkbox is enabled
@@ -444,7 +493,7 @@ BSD-3-Clause
 
 ## Maintainer
 
-Ed Wilde <ed@example.com>
+Ed Wilde (https://github.com/edwilde)
 
 ---
 

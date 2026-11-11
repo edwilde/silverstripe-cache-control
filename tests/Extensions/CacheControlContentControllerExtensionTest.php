@@ -5,11 +5,13 @@ namespace Edwilde\CacheControl\Tests\Extensions;
 use Edwilde\CacheControl\Extensions\CacheControlContentControllerExtension;
 use Edwilde\CacheControl\Extensions\CacheControlPageExtension;
 use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
+use Edwilde\CacheControl\SharedMaxAge;
 use SilverStripe\CMS\Controllers\ContentController;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\Middleware\HTTPCacheControlMiddleware;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\SiteConfig\SiteConfig;
+use SilverStripe\Versioned\Versioned;
 
 class CacheControlContentControllerExtensionTest extends SapphireTest
 {
@@ -567,5 +569,406 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             $middleware->getVary(),
             'Only the selected Vary option should be present, not the framework default'
         );
+    }
+
+    /**
+     * Site-level grace periods reach the middleware for a page with no override.
+     */
+    public function testSiteSettingsEmitStaleWhileRevalidate()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->StaleWhileRevalidatePreset = '86400';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $this->assertEquals(86400, $this->getMiddleware()->getDirective('stale-while-revalidate'));
+    }
+
+    /**
+     * A page override emits both directives, and must-revalidate is withheld because it would
+     * forbid the stale reuse the grace periods ask for.
+     */
+    public function testPageOverrideEmitsBothStaleDirectives()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->EnableMustRevalidate = true;
+        $page->StaleWhileRevalidatePreset = '21600';
+        $page->StaleIfErrorPreset = '604800';
+        $page->write();
+
+        ContentController::create($page)->doInit();
+        $middleware = $this->getMiddleware();
+
+        $this->assertEquals(21600, $middleware->getDirective('stale-while-revalidate'));
+        $this->assertEquals(604800, $middleware->getDirective('stale-if-error'));
+        $this->assertFalse($middleware->getDirective('must-revalidate'));
+    }
+
+    /**
+     * The directives are set on the same states as max-age, so a session downgrading the
+     * response from public to private keeps them.
+     */
+    public function testStaleDirectivesSurvivePrivateDowngrade()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->StaleWhileRevalidatePreset = '86400';
+        $page->write();
+
+        ContentController::create($page)->doInit();
+        $middleware = $this->getMiddleware();
+        $middleware->privateCache();
+
+        $this->assertEquals(86400, $middleware->getDirective('stale-while-revalidate'));
+    }
+
+    /**
+     * Nothing changes for a site that has not opted in.
+     */
+    public function testStaleDirectivesOffByDefault()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = true;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+        $middleware = $this->getMiddleware();
+
+        $this->assertFalse($middleware->getDirective('stale-while-revalidate'));
+        $this->assertFalse($middleware->getDirective('stale-if-error'));
+        $this->assertTrue($middleware->getDirective('must-revalidate'));
+    }
+
+    /**
+     * A grace period of zero must not surface as "stale-while-revalidate=0".
+     */
+    public function testZeroGracePeriodIsNotEmitted()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->StaleWhileRevalidatePreset = 'custom';
+        $page->StaleWhileRevalidate = 0;
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $header = $this->getMiddleware()->generateHeadersFor($controller->getResponse())['Cache-Control'];
+        $this->assertStringNotContainsString('stale-while-revalidate', $header);
+    }
+
+    public function testGeneratedHeaderStringContainsStaleDirectives()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->StaleWhileRevalidatePreset = '86400';
+        $page->StaleIfErrorPreset = '604800';
+        $page->write();
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $header = $this->getMiddleware()->generateHeadersFor($controller->getResponse())['Cache-Control'];
+        $this->assertMatchesRegularExpression('/stale-while-revalidate=86400/', $header);
+        $this->assertMatchesRegularExpression('/stale-if-error=604800/', $header);
+    }
+
+    /**
+     * Draft reduction lowers max-age only; the grace periods are left in place.
+     */
+    public function testDraftReductionKeepsStaleDirectives()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->StaleWhileRevalidatePreset = '86400';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->publishSingle();
+        $page->Title = 'Draft Change';
+        $page->write();
+
+        $livePage = Versioned::get_by_stage(SiteTree::class, Versioned::LIVE)->byID($page->ID);
+        ContentController::create($livePage)->doInit();
+        $middleware = $this->getMiddleware();
+
+        $this->assertEquals(10, $middleware->getDirective('max-age'));
+        $this->assertEquals(86400, $middleware->getDirective('stale-while-revalidate'));
+    }
+
+    /**
+     * Site-level public cache with a CDN duration emits s-maxage after max-age.
+     */
+    public function testSiteSettingsEmitSharedMaxAgeAfterMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(604800, $middleware->getDirective('s-maxage'));
+
+        $header = $middleware->generateHeadersFor($controller->getResponse())['Cache-Control'];
+        $this->assertMatchesRegularExpression('/max-age=300.*s-maxage=604800/', $header);
+    }
+
+    /**
+     * Private cache never emits s-maxage, even with a CDN duration configured.
+     */
+    public function testPrivateCacheEmitsNoSharedMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'private';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $this->assertFalse($this->getMiddleware()->getDirective('s-maxage'));
+    }
+
+    /**
+     * A no-store cache duration emits no s-maxage.
+     */
+    public function testNoStoreEmitsNoSharedMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'nostore';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $this->assertFalse($this->getMiddleware()->getDirective('s-maxage'));
+    }
+
+    /**
+     * A CDN duration left off removes any s-maxage set elsewhere before onAfterInit().
+     */
+    public function testSharedMaxAgeOffRemovesPreExistingDirective()
+    {
+        $middleware = $this->getMiddleware();
+        $middleware->setSharedMaxAge(3600);
+
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = SharedMaxAge::PRESET_OFF;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $this->assertFalse($middleware->getDirective('s-maxage'));
+    }
+
+    /**
+     * A page override supplies its own CDN duration, not the site config's.
+     */
+    public function testPageOverrideUsesOwnSharedMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = '86400';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '300';
+        $page->SharedMaxAgePreset = '604800';
+        $page->write();
+
+        ContentController::create($page)->doInit();
+
+        $this->assertEquals(604800, $this->getMiddleware()->getDirective('s-maxage'));
+    }
+
+    /**
+     * An inherited ancestor's CDN duration reaches a child page with no own override.
+     */
+    public function testInheritedCacheSuppliesSharedMaxAge()
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        $archive = $this->objFromFixture(SiteTree::class, 'archive');
+        $archive->SharedMaxAgePreset = '86400';
+        $archive->write();
+
+        $child = $this->objFromFixture(SiteTree::class, 'archive_child');
+        ContentController::create($child)->doInit();
+
+        $this->assertEquals(86400, $this->getMiddleware()->getDirective('s-maxage'));
+    }
+
+    /**
+     * A session downgrade from public to private removes s-maxage set for the public state.
+     */
+    public function testSharedMaxAgeRemovedOnSessionPrivateDowngrade()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $middleware = $this->getMiddleware();
+        $middleware->privateCache();
+
+        $this->assertFalse($middleware->getDirective('s-maxage'));
+    }
+
+    /**
+     * Draft cache reduction caps s-maxage to the draft value alongside max-age.
+     */
+    public function testDraftReductionCapsSharedMaxAge()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '3600';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->HasPendingDraftChanges = true;
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(10, $middleware->getDirective('max-age'));
+        $this->assertEquals(10, $middleware->getDirective('s-maxage'));
+    }
+
+    /**
+     * s-maxage combines with grace periods, and must-revalidate is still omitted.
+     */
+    public function testSharedMaxAgeCombinesWithGracePeriods()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '300';
+        $page->SharedMaxAgePreset = '604800';
+        $page->StaleWhileRevalidatePreset = '3600';
+        $page->write();
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertEquals(604800, $middleware->getDirective('s-maxage'));
+        $this->assertEquals(3600, $middleware->getDirective('stale-while-revalidate'));
+        $this->assertFalse($middleware->getDirective('must-revalidate'));
+    }
+
+    /**
+     * The rendered header orders s-maxage before the grace periods, matching the CMS previews.
+     */
+    public function testGeneratedHeaderOrdersSharedMaxAgeBeforeGracePeriods()
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '300';
+        $page->SharedMaxAgePreset = '604800';
+        $page->StaleWhileRevalidatePreset = '3600';
+        $page->write();
+
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $header = $this->getMiddleware()->generateHeadersFor($controller->getResponse())['Cache-Control'];
+        $this->assertMatchesRegularExpression(
+            '/max-age=300, s-maxage=604800, stale-while-revalidate=3600/',
+            $header
+        );
+    }
+
+    /**
+     * A private cache type never emits s-maxage, even when the state is forced public elsewhere.
+     */
+    public function testSharedMaxAgeWithheldForPrivateCacheTypeEvenWhenForcedPublic()
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'private';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '300';
+        $siteConfig->SharedMaxAgePreset = '604800';
+        $siteConfig->write();
+
+        $middleware = $this->getMiddleware();
+        $middleware->publicCache(true);
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $this->assertFalse($middleware->getDirective('s-maxage'));
     }
 }

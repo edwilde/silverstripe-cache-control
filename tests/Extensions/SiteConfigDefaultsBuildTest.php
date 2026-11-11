@@ -191,7 +191,7 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
     /**
      * Check a build at version zero prints no applied message and leaves a stale row's version and cache type alone, and the same row updates once a version is set
      */
-    public function testVersionZeroChangesNothing(): void
+    public function testVersionZeroPrintsNoAppliedMessageAndLeavesTheVersionAndCacheTypeOfAStaleRowAlone(): void
     {
         DefaultsConfig::set(0, self::DEFAULTS);
 
@@ -210,7 +210,7 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
     /**
      * Check a build with an empty map prints no applied message and stamps no version, and the same row takes the version once a map is set
      */
-    public function testEmptyMapChangesNothing(): void
+    public function testEmptyMapPrintsNoAppliedMessageAndStampsNoVersion(): void
     {
         DefaultsConfig::set(2, []);
 
@@ -398,7 +398,7 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
             $row->write();
             $this->fail('Writing a row with an invalid enum value should throw');
         } catch (ValidationException $exception) {
-            $this->assertContains('CacheType', array_column($exception->getResult()->getMessages(), 'fieldName'));
+            $this->assertSame(['CacheType'], array_column($exception->getResult()->getMessages(), 'fieldName'));
         }
         $this->assertSame($rowCount, SiteConfig::get()->count());
     }

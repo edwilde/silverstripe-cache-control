@@ -1059,7 +1059,7 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
     }
 
     /**
-     * A SiteConfig below the configured defaults version sends the configured state and max-age once the build has run.
+     * A SiteConfig below the configured defaults version applies the configured state and max-age to the cache middleware once the build has run.
      */
     public function testBuildAppliesConfiguredDefaultsToAPageRequest(): void
     {
@@ -1068,7 +1068,6 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
             'EnableCacheControl' => true,
             'CacheType' => 'public',
             'MaxAgePreset' => 300,
-            'EnableMustRevalidate' => false,
         ]);
 
         SiteConfig::singleton()->requireDefaultRecords();

@@ -1,0 +1,45 @@
+SilverStripe\SiteConfig\SiteConfig:
+  site:
+    Title: 'Site with public caching'
+    EnableCacheControl: true
+    CacheType: 'public'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '300'
+    EnableMustRevalidate: false
+    EnableDraftCacheReduction: true
+SilverStripe\CMS\Model\RedirectorPage:
+  redirector_parent:
+    Title: 'Redirector parent applying to children'
+    RedirectionType: 'External'
+    ExternalURL: 'https://example.com'
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'private'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '600'
+    EnableMustRevalidate: false
+    ApplyCacheToChildren: true
+SilverStripe\CMS\Model\SiteTree:
+  override_page:
+    Title: 'Page with a private override'
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'private'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '600'
+    EnableMustRevalidate: false
+  parent_page:
+    Title: 'Parent applying to children'
+    OverrideCacheControl: true
+    EnableCacheControl: true
+    CacheType: 'private'
+    CacheDuration: 'maxage'
+    MaxAgePreset: '600'
+    EnableMustRevalidate: false
+    ApplyCacheToChildren: true
+  child_page:
+    Title: 'Child of the parent'
+    Parent: =>SilverStripe\CMS\Model\SiteTree.parent_page
+  redirector_grandchild:
+    Title: 'Child of the redirector parent'
+    Parent: =>SilverStripe\CMS\Model\RedirectorPage.redirector_parent

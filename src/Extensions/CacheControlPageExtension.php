@@ -81,6 +81,22 @@ class CacheControlPageExtension extends Extension
     private static int $draft_cache_max_age = 10;
 
     /**
+     * Whether the page-level Cache Control settings are in use.
+     *
+     * When false, the Cache Control tab is not built and saved page overrides are ignored, so the page
+     * follows the site-wide settings. Saved data is kept and takes effect again when this is true.
+     * Draft cache reduction still applies. Set it on SiteTree for every page type, or on one page
+     * class to turn it off for that class only:
+     *
+     *     SilverStripe\CMS\Model\SiteTree:
+     *       enable_cache_control_page_settings: false
+     *
+     * @config
+     * @var bool
+     */
+    private static bool $enable_cache_control_page_settings = true;
+
+    /**
      * Database fields for page-level cache control
      *
      * @var array
@@ -136,7 +152,8 @@ class CacheControlPageExtension extends Extension
      * - Override checkbox to enable page-specific settings
      * - All cache control options (conditionally visible)
      *
-     * Uses display logic to show/hide fields based on selections.
+     * Uses display logic to show/hide fields based on selections. Adds nothing when the page settings are
+     * turned off for this page's class.
      *
      * @param FieldList $fields The current CMS fields
      * @return void
@@ -162,6 +179,10 @@ class CacheControlPageExtension extends Extension
             'ApplyCacheToChildren',
             'HasPendingDraftChanges',
         ]);
+
+        if (!$this->owner->config()->get('enable_cache_control_page_settings')) {
+            return;
+        }
 
         // Display the current effective cache control header
         $effectiveHeader = $this->owner->getEffectiveCacheControlDescription();
@@ -272,7 +293,7 @@ class CacheControlPageExtension extends Extension
         //   2. Nearest ancestor with ApplyCacheToChildren (when enable_cache_inheritance is on)
         //   3. SiteConfig defaults
         // Reuse $ancestor from override label lookup above
-        if ($this->owner->OverrideCacheControl) {
+        if ($this->hasActiveCacheOverride()) {
             $source = $this->owner;
         } else {
             $source = $ancestor ?: $siteConfig;
@@ -429,7 +450,7 @@ class CacheControlPageExtension extends Extension
     public function getCacheControlHeader()
     {
         // If override is enabled, use page-specific settings
-        if ($this->owner->OverrideCacheControl) {
+        if ($this->hasActiveCacheOverride()) {
             // Only return page header if cache control is enabled for this page
             if ($this->owner->EnableCacheControl) {
                 return $this->getPageCacheControlHeader();
@@ -453,6 +474,20 @@ class CacheControlPageExtension extends Extension
         }
 
         return null;
+    }
+
+    /**
+     * Whether this page's saved override is in effect
+     *
+     * True only when the page settings are turned on for this page's class and the editor ticked
+     * the override. Every reader of the saved override data goes through this method.
+     *
+     * @return bool
+     */
+    public function hasActiveCacheOverride(): bool
+    {
+        return (bool)$this->owner->config()->get('enable_cache_control_page_settings')
+            && (bool)$this->owner->OverrideCacheControl;
     }
 
     /**
@@ -481,9 +516,14 @@ class CacheControlPageExtension extends Extension
             return null;
         }
 
+        // A page with its page settings turned off does not inherit either.
+        if (!$this->owner->config()->get('enable_cache_control_page_settings')) {
+            return null;
+        }
+
         $parent = $this->owner->Parent();
         while ($parent && $parent->exists()) {
-            if ($parent->OverrideCacheControl && $parent->ApplyCacheToChildren) {
+            if ($parent->hasActiveCacheOverride() && $parent->ApplyCacheToChildren) {
                 return $parent;
             }
             $parent = $parent->Parent();
@@ -632,7 +672,7 @@ class CacheControlPageExtension extends Extension
 
     private function doValidateMaxAge($result): void
     {
-        if (!$this->owner->OverrideCacheControl
+        if (!$this->hasActiveCacheOverride()
             || !$this->owner->EnableCacheControl
             || $this->owner->CacheDuration !== 'maxage'
         ) {
@@ -662,14 +702,14 @@ class CacheControlPageExtension extends Extension
         $header = $this->owner->getCacheControlHeader();
 
         if (!$header) {
-            $reason = $this->owner->OverrideCacheControl && !$this->owner->EnableCacheControl
+            $reason = $this->hasActiveCacheOverride() && !$this->owner->EnableCacheControl
                 ? 'Cache control is disabled for this specific page.'
                 : 'No cache control is currently set for this page.';
 
             return $reason . ' Browsers will use their default caching behavior.';
         }
 
-        if ($this->owner->OverrideCacheControl) {
+        if ($this->hasActiveCacheOverride()) {
             $source = 'This is a <strong>page-specific setting</strong>.';
         } else {
             $ancestor = $this->findInheritedCacheSource();
@@ -684,7 +724,7 @@ class CacheControlPageExtension extends Extension
         }
 
         $caveat = '';
-        if (!$this->owner->OverrideCacheControl || $this->owner->EnableCacheControl) {
+        if (!$this->hasActiveCacheOverride() || $this->owner->EnableCacheControl) {
             $caveat = '<br><small>Note: Silverstripe may override this at runtime for pages with forms, active sessions, or restricted access.</small>';
         }
 

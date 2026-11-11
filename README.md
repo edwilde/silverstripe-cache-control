@@ -95,7 +95,7 @@ SilverStripe\SiteConfig\SiteConfig:
     MaxAgePreset: 300
 ```
 
-- `dev/build` gives every SiteConfig row whose stored version is lower than `cache_control_defaults_version` the values in the map, then stamps the row with that version. Every row is covered, across all subsites when the subsites module is installed.
+- `dev/build` gives every SiteConfig row whose stored version is lower than `cache_control_defaults_version` the values in the map, then stamps the row with that version. Every row is covered, across all subsites when the subsites module is installed, because the rows are read by ID and a per-subsite filter does not hide them.
 - **Bump the version to re-apply.** A row takes the map once per version, so editors can change the settings in the CMS afterwards and a later build at the same version leaves their changes alone.
 - A version bump **overwrites** the listed fields on every row, including changes editors made. Fields that are not in the map are never touched.
 - A row whose stored version is higher than the configured one is left alone.

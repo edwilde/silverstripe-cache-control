@@ -17,6 +17,9 @@ namespace Edwilde\CacheControl;
 use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
 use InvalidArgumentException;
 use SilverStripe\Core\Config\Config;
+use SilverStripe\Core\Validation\ValidationException;
+use SilverStripe\Core\Validation\ValidationResult;
+use SilverStripe\ORM\DB;
 use SilverStripe\ORM\FieldType\DBEnum;
 use SilverStripe\SiteConfig\SiteConfig;
 
@@ -108,6 +111,78 @@ final class SiteConfigDefaults
         }
 
         $row->{self::VERSION_FIELD} = self::configuredVersion();
+    }
+
+    /**
+     * Apply the configured defaults to every SiteConfig row whose stored version is lower.
+     *
+     * Each due row is assigned and validated before any row is written, so one invalid row leaves
+     * every row unchanged. Rows are read across all subsites when the subsites module is installed.
+     *
+     * @return void
+     * @throws InvalidArgumentException When a configured key is not a field the project may set
+     * @throws ValidationException When a due row is invalid with the defaults assigned
+     */
+    public static function applyToAll(): void
+    {
+        if (!self::isConfigured()) {
+            return;
+        }
+
+        // Check the map before any row is read, so a mistyped key fails even when no row is due.
+        self::configuredDefaults();
+
+        $version = self::configuredVersion();
+        $dueRows = [];
+        $failures = [];
+
+        $rows = SiteConfig::get()->setDataQueryParam('Subsite.filter', false)->sort('ID');
+        foreach ($rows as $row) {
+            if (!self::isDue($row)) {
+                continue;
+            }
+
+            self::assign($row);
+            $result = $row->validate();
+            if (!$result->isValid()) {
+                $failures[] = self::describeFailure($row, $result);
+            }
+            $dueRows[] = $row;
+        }
+
+        if ($failures !== []) {
+            throw new ValidationException(sprintf(
+                'Cache control defaults version %d is invalid for %s. No SiteConfig rows were changed.',
+                $version,
+                implode('; ', $failures)
+            ));
+        }
+
+        foreach ($dueRows as $row) {
+            $row->write();
+            DB::alteration_message(
+                sprintf('Applied cache control defaults version %d to SiteConfig #%d', $version, $row->ID),
+                'changed'
+            );
+        }
+    }
+
+    /**
+     * Describe a row's validation failure as its ID followed by each field message.
+     *
+     * @param SiteConfig $row The row that failed validation
+     * @param ValidationResult $result The failed validation result
+     * @return string
+     */
+    private static function describeFailure(SiteConfig $row, ValidationResult $result): string
+    {
+        $messages = [];
+        foreach ($result->getMessages() as $message) {
+            $fieldPrefix = $message['fieldName'] !== '' ? $message['fieldName'] . ': ' : '';
+            $messages[] = $fieldPrefix . $message['message'];
+        }
+
+        return sprintf('SiteConfig #%d (%s)', $row->ID, implode('; ', $messages));
     }
 
     /**

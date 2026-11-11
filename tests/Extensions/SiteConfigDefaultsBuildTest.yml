@@ -1,0 +1,28 @@
+SilverStripe\SiteConfig\SiteConfig:
+  first_stale:
+    Title: 'First stale'
+    CacheControlDefaultsVersion: 0
+    EnableCacheControl: false
+    CacheType: 'private'
+    MaxAgePreset: '3600'
+    MaxAge: 600
+    EnableMustRevalidate: true
+    VaryCookie: true
+  second_stale:
+    Title: 'Second stale'
+    CacheControlDefaultsVersion: 1
+    EnableCacheControl: false
+    CacheType: 'private'
+    MaxAgePreset: '3600'
+    MaxAge: 0
+    EnableMustRevalidate: true
+    VaryCookie: true
+  ahead:
+    Title: 'Ahead of the configured version'
+    CacheControlDefaultsVersion: 5
+    EnableCacheControl: false
+    CacheType: 'private'
+    MaxAgePreset: '3600'
+    MaxAge: 600
+    EnableMustRevalidate: true
+    VaryCookie: true

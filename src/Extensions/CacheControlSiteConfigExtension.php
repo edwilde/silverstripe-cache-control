@@ -13,6 +13,7 @@
  * - Configure max-age value in seconds
  * - Enable must-revalidate directive
  * - Conditional field visibility using display logic
+ * - Apply versioned, project-defined defaults to SiteConfig rows (see SiteConfigDefaults)
  *
  * @package Edwilde\CacheControl
  * @author Ed Wilde
@@ -21,6 +22,7 @@
 namespace Edwilde\CacheControl\Extensions;
 
 use Edwilde\CacheControl\SharedMaxAge;
+use Edwilde\CacheControl\SiteConfigDefaults;
 use Edwilde\CacheControl\StaleDirectives;
 use SilverStripe\Core\Extension;
 use SilverStripe\Core\Validation\ValidationResult;
@@ -469,6 +471,16 @@ class CacheControlSiteConfigExtension extends Extension
     public function updateValidate(ValidationResult $result): void
     {
         $this->doValidateMaxAge($result);
+    }
+
+    /**
+     * Apply the configured defaults to SiteConfig rows below the configured version during dev/build
+     *
+     * @return void
+     */
+    public function onRequireDefaultRecords(): void
+    {
+        SiteConfigDefaults::applyToAll();
     }
 
     private function doValidateMaxAge($result): void

@@ -166,9 +166,10 @@ class CacheControlContentControllerExtension extends Extension
             return;
         }
 
-        // Skip if cache is already disabled — nothing to reduce
+        // Skip if cache is disabled or no-store: nothing to reduce, and setMaxAge() would remove no-store
         $middleware = HTTPCacheControlMiddleware::singleton();
-        if ($middleware->getState() === HTTPCacheControlMiddleware::STATE_DISABLED) {
+        $cacheDisabled = $middleware->getState() === HTTPCacheControlMiddleware::STATE_DISABLED;
+        if ($cacheDisabled || $middleware->getDirective('no-store')) {
             return;
         }
 

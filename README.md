@@ -79,7 +79,7 @@ Vary headers are configured site-wide only — they apply consistently to all pa
 
 ### Set the site policy from YAML
 
-A project can define the site-wide settings in code, so every environment gets the same policy from `dev/build` instead of someone setting it in the CMS. Add a version and a map of SiteConfig fields to a fragment of your project's config that loads after this module's, for example `app/_config/cache-control.yml`:
+A project can define the site-wide settings in code, so every environment gets the same policy from `dev/build` instead of someone setting it in the CMS. Add a version and a map of SiteConfig fields to a fragment of your project's config, for example `app/_config/cache-control.yml`:
 
 ```yaml
 ---
@@ -104,9 +104,6 @@ SilverStripe\SiteConfig\SiteConfig:
 - An unknown key fails `dev/build`, even when no row is due, and throws whenever a SiteConfig is created while defaults are configured, such as a new subsite or a SiteConfig made in your own tests.
 - When the map gives a due row an invalid value, `dev/build` fails before any row is written, with an error naming the SiteConfig row ID and the field messages. A new row holding an invalid value fails when it is written.
 - Version `0`, the default, or an empty map applies nothing, and keys are not checked.
-
-> [!IMPORTANT]
-> Keep the `After` line. This module's config sets `cache_control_defaults_version: 0`, so a fragment that loads before it is overridden back to 0 and nothing is applied.
 
 ### Page-specific Overrides
 

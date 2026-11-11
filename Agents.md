@@ -116,7 +116,7 @@ Note: Page-level extensions don't include Vary headers - those are site-wide onl
 
 ### Versioned Defaults
 
-`Edwilde\CacheControl\SiteConfigDefaults` (a final static helper) applies a project-defined policy to SiteConfig rows. A project sets `cache_control_defaults_version` (int) and `cache_control_defaults` (SiteConfig field name => value) in a fragment that loads `After: '#edwilde-cache-control'`, because this module's YAML sets the version to 0. `CacheControlDefaultsVersion` on each row records the version last applied.
+`Edwilde\CacheControl\SiteConfigDefaults` (a final static helper) applies a project-defined policy to SiteConfig rows. A project sets `cache_control_defaults_version` (int) and `cache_control_defaults` (SiteConfig field name => value) in its own config fragment, recommended `After: '#edwilde-cache-control'`. The module's YAML sets neither key: the private statics on `CacheControlSiteConfigExtension` supply the defaults (0 and `[]`), so a fragment applies whatever its load order. `CacheControlDefaultsVersion` on each row records the version last applied.
 
 - **Configured** means a version above 0 and a non-empty map. Anything else is a no-op, and keys are not checked.
 - **Build hook**: `CacheControlSiteConfigExtension::onRequireDefaultRecords()` calls `SiteConfigDefaults::applyToAll()`, which assigns the map and the version to every row whose stored version is lower, across all subsites. A higher stored version is left alone. Every due row is assigned and validated before any row is written, so an invalid value throws `ValidationException` naming the row ID and the field messages, with nothing written. If a database error interrupts the writes, rows not yet written keep their lower version and the next build applies them.
@@ -281,9 +281,13 @@ After:
 SilverStripe\SiteConfig\SiteConfig:
   extensions:
     - Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension
-  # Versioned project defaults, applied on dev/build (see Versioned Defaults)
-  cache_control_defaults_version: 0
-  cache_control_defaults: {}
+  # Versioned project defaults, applied on dev/build (see Versioned Defaults).
+  # A project sets them in its own fragment; this module sets neither.
+  # cache_control_defaults_version: 1
+  # cache_control_defaults:
+  #   EnableCacheControl: true
+  #   CacheType: public
+  #   MaxAgePreset: 300
 
 SilverStripe\CMS\Model\SiteTree:
   extensions:

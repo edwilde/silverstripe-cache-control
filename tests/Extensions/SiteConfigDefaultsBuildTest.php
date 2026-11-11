@@ -36,6 +36,16 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
     ];
 
     /**
+     * The configured field map for new rows, where every value differs from the field default
+     */
+    private const NEW_ROW_DEFAULTS = [
+        'EnableCacheControl' => true,
+        'CacheType' => 'private',
+        'MaxAgePreset' => 300,
+        'EnableMustRevalidate' => false,
+    ];
+
+    /**
      * The schema manager's output suppression before the test unquieted it
      */
     private ?bool $originalSuppressOutput = null;
@@ -286,5 +296,129 @@ class SiteConfigDefaultsBuildTest extends SapphireTest
         $this->assertStringContainsString('Applied cache control defaults version 2 to SiteConfig #' . $firstId, $output);
         $this->assertStringContainsString('Applied cache control defaults version 2 to SiteConfig #' . $secondId, $output);
         $this->assertStringNotContainsString('SiteConfig #' . $aheadId, $output);
+    }
+
+    /**
+     * Check a new row written after creation holds the configured fields and the version
+     */
+    public function testNewRowTakesTheDefaultsAndVersionWhenWritten(): void
+    {
+        $this->configure(2, self::NEW_ROW_DEFAULTS);
+
+        $row = SiteConfig::create();
+        $row->write();
+
+        $reloaded = SiteConfig::get()->byID($row->ID);
+        $this->assertTrue((bool)$reloaded->EnableCacheControl);
+        $this->assertSame('private', $reloaded->CacheType);
+        $this->assertSame('300', $reloaded->MaxAgePreset);
+        $this->assertFalse((bool)$reloaded->EnableMustRevalidate);
+        $this->assertSame(2, (int)$reloaded->CacheControlDefaultsVersion);
+    }
+
+    /**
+     * Check a new row is not written by assigning the defaults
+     */
+    public function testNewRowIsNotWrittenByAssigningTheDefaults(): void
+    {
+        $this->configure(2, self::NEW_ROW_DEFAULTS);
+        $rowCount = SiteConfig::get()->count();
+
+        $row = SiteConfig::create();
+
+        $this->assertSame('private', $row->CacheType);
+        $this->assertFalse($row->isInDB());
+        $this->assertSame($rowCount, SiteConfig::get()->count());
+    }
+
+    /**
+     * Check a new row keeps the field defaults at version zero, and takes the map once a version is set
+     */
+    public function testNewRowIsLeftAloneAtVersionZero(): void
+    {
+        $this->configure(0, self::NEW_ROW_DEFAULTS);
+
+        $untouched = SiteConfig::create();
+
+        $this->assertSame('public', $untouched->CacheType);
+        $this->assertSame(0, (int)$untouched->CacheControlDefaultsVersion);
+
+        $this->configure(2, self::NEW_ROW_DEFAULTS);
+
+        $this->assertSame('private', SiteConfig::create()->CacheType);
+    }
+
+    /**
+     * Check a new row is not stamped with a version for an empty map, and takes the map once one is set
+     */
+    public function testNewRowIsLeftAloneWithAnEmptyMap(): void
+    {
+        $this->configure(2, []);
+
+        $untouched = SiteConfig::create();
+
+        $this->assertSame(0, (int)$untouched->CacheControlDefaultsVersion);
+
+        $this->configure(2, self::NEW_ROW_DEFAULTS);
+
+        $this->assertSame(2, (int)SiteConfig::create()->CacheControlDefaultsVersion);
+    }
+
+    /**
+     * Check creating a row throws for an unknown key and names it
+     */
+    public function testUnknownKeyThrowsWhenARowIsCreated(): void
+    {
+        $this->configure(2, ['NotARealField' => 'x']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('NotARealField');
+
+        SiteConfig::create();
+    }
+
+    /**
+     * Check a build with no SiteConfig row creates one holding the configured fields and the version
+     */
+    public function testFreshInstallBuildCreatesARowWithTheDefaultsAndVersion(): void
+    {
+        foreach (SiteConfig::get() as $row) {
+            $row->delete();
+        }
+        $this->assertSame(0, SiteConfig::get()->count());
+        $this->configure(2, self::NEW_ROW_DEFAULTS);
+
+        $this->build();
+
+        $this->assertSame(1, SiteConfig::get()->count());
+        $created = SiteConfig::get()->first();
+        $this->assertTrue((bool)$created->EnableCacheControl);
+        $this->assertSame('private', $created->CacheType);
+        $this->assertSame('300', $created->MaxAgePreset);
+        $this->assertFalse((bool)$created->EnableMustRevalidate);
+        $this->assertSame(2, (int)$created->CacheControlDefaultsVersion);
+    }
+
+    /**
+     * Check a second build after a fresh install keeps an editor change and applies nothing
+     */
+    public function testSecondBuildAfterAFreshInstallChangesNothing(): void
+    {
+        foreach (SiteConfig::get() as $row) {
+            $row->delete();
+        }
+        $this->configure(2, self::NEW_ROW_DEFAULTS);
+        $this->build();
+        $created = SiteConfig::get()->first();
+        $this->assertSame('private', $created->CacheType);
+        $created->CacheType = 'public';
+        $created->write();
+
+        $output = $this->build();
+
+        $this->assertSame(1, SiteConfig::get()->count());
+        $this->assertSame('public', SiteConfig::get()->first()->CacheType);
+        $this->assertSame(2, (int)SiteConfig::get()->first()->CacheControlDefaultsVersion);
+        $this->assertStringNotContainsString('Applied', $output);
     }
 }

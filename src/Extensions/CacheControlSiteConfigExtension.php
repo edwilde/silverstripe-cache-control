@@ -483,6 +483,16 @@ class CacheControlSiteConfigExtension extends Extension
         SiteConfigDefaults::applyToAll();
     }
 
+    /**
+     * Give a newly created SiteConfig the configured defaults and version without writing it
+     *
+     * @return void
+     */
+    public function onAfterPopulateDefaults(): void
+    {
+        SiteConfigDefaults::assign($this->owner);
+    }
+
     private function doValidateMaxAge($result): void
     {
         if (!$this->owner->EnableCacheControl || $this->owner->CacheDuration !== 'maxage') {

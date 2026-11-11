@@ -65,11 +65,10 @@ src/
 4. **Apply settings** to `HTTPCacheControlMiddleware` singleton:
    - Set cache state (public/private or disabled)
    - Set cache duration (max-age or no-store)
-   - Add Expires header to match max-age
    - Apply the CDN cache duration (`applySharedMaxAge()`): resolve `SharedMaxAge::forSource()` (0 unless the source's `CacheType` is public) and set `s-maxage` on `STATE_PUBLIC` only, so a session downgrade to private never emits it; a resolved value of 0 removes any `s-maxage` set elsewhere on every non-disabled state
    - Apply `stale-while-revalidate` / `stale-if-error` (`applyStaleDirectives()`) and turn off `must-revalidate` when either is set
    - Apply Vary headers based on CMS configuration (always read from SiteConfig)
-5. **Draft cache reduction** (`applyDraftCacheReduction()`): if `EnableDraftCacheReduction` is on and the page's `HasPendingDraftChanges` flag is set, `max-age` and `Expires` drop to `draft_cache_max_age` (default 10s), and an existing `s-maxage` on `STATE_PUBLIC` is capped to the same value. The flag is written on save and cleared on publish, so this costs no extra query.
+5. **Draft cache reduction** (`applyDraftCacheReduction()`): if `EnableDraftCacheReduction` is on and the page's `HasPendingDraftChanges` flag is set, `max-age` drops to `draft_cache_max_age` (default 10s), which the framework's `Expires` then follows, and an existing `s-maxage` on `STATE_PUBLIC` is capped to the same value. The flag is written on save and cleared on publish, so this costs no extra query.
 6. **Middleware processes response** → nswdpc module applies configured headers, respecting:
    - Existing headers (doesn't override)
    - Forms on page (disables cache)
@@ -148,13 +147,15 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
 
 ### HTTP Headers Applied
 
-The module applies the following HTTP headers:
+The module's settings produce the following HTTP headers:
 
-1. **Cache-Control**: The primary header controlling cache behaviour (HTTP/1.1+)
-2. **Expires**: Set to match Cache-Control max-age for HTTP/1.0 compatibility
-3. **Vary**: Tells caches which request headers affect the response, so separate entries are stored for different variations
+1. **Cache-Control**: The primary header controlling cache behaviour (HTTP/1.1+), set by the module
+2. **Vary**: Tells caches which request headers affect the response, so separate entries are stored for different variations, set by the module
+3. **Expires**: Derived by the framework from the final Cache-Control state, for HTTP/1.0 compatibility
 
-**Expires Header**: When max-age is set, the Expires header is automatically calculated as `current_time + max-age` in GMT format. This ensures compatibility with older HTTP/1.0 caches and proxies. Per the HTTP specification, Cache-Control takes precedence over Expires in HTTP/1.1 clients, but both should be present for maximum compatibility.
+**Expires Header**: The module never writes this header. `HTTPCacheControlMiddleware` adds it after the response is complete, as `current_time + max-age` in GMT format, and omits it where the final state has no max-age. That covers error responses, redirects and no-store responses. Per the HTTP specification, Cache-Control takes precedence over Expires in HTTP/1.1 clients, but both should be present for maximum compatibility.
+
+Writing Expires any earlier is unsafe. An Expires header on its own makes a response cacheable under RFC 9111, so one set during controller init survives an error thrown later in the request and leaves the error cacheable. It also blocks the framework's own value, because `applyToResponse()` only adds a header when the response does not already carry one.
 
 **Vary Header**: Configured site-wide only (not per-page). Available options: `Accept-Encoding` (default: enabled), `X-Forwarded-Protocol`, `Cookie`, `Authorization`. Even when a page uses page-level cache control overrides, Vary headers are always read from SiteConfig. This ensures consistent cache variation behaviour across the entire site.
 

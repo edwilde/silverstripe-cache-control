@@ -84,7 +84,7 @@ A project can define the site-wide settings in code, so every environment gets t
 ```yaml
 ---
 Name: app-cache-control
-After:
+After:  # recommended, not required
   - '#edwilde-cache-control'
 ---
 SilverStripe\SiteConfig\SiteConfig:

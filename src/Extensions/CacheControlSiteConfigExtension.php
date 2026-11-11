@@ -43,6 +43,25 @@ use UncleCheese\DisplayLogic\Forms\Wrapper;
 class CacheControlSiteConfigExtension extends Extension
 {
     /**
+     * Version of the project-defined cache control policy in `cache_control_defaults`.
+     *
+     * A SiteConfig row whose stored version is lower receives the policy on dev/build. Zero applies nothing.
+     *
+     * @config
+     * @var int
+     */
+    private static int $cache_control_defaults_version = 0;
+
+    /**
+     * Cache control field values to apply to SiteConfig rows whose stored version is lower than the
+     * configured version, keyed by SiteConfig field name.
+     *
+     * @config
+     * @var array<string, mixed>
+     */
+    private static array $cache_control_defaults = [];
+
+    /**
      * Database fields for site-wide cache control
      *
      * @var array
@@ -65,6 +84,7 @@ class CacheControlSiteConfigExtension extends Extension
         'VaryCookie' => 'Boolean',
         'VaryAuthorization' => 'Boolean',
         'EnableDraftCacheReduction' => 'Boolean',
+        'CacheControlDefaultsVersion' => 'Int',
     ];
 
     /**
@@ -93,6 +113,7 @@ class CacheControlSiteConfigExtension extends Extension
         'VaryCookie' => false,
         'VaryAuthorization' => false,
         'EnableDraftCacheReduction' => true,
+        'CacheControlDefaultsVersion' => 0,
     ];
 
     /**

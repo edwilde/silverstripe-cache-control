@@ -94,13 +94,7 @@ class CacheControlContentControllerExtension extends Extension
             $this->applySharedMaxAge($middleware, $page);
             $this->applyStaleDirectives($middleware, $page);
 
-            // must-revalidate is on by default in every cacheable state, so a grace period
-            // clears it explicitly.
-            if (StaleDirectives::hasGracePeriod($page)) {
-                $middleware->setMustRevalidate(false);
-            } elseif ($page->EnableMustRevalidate) {
-                $middleware->setMustRevalidate(true);
-            }
+            $this->applyMustRevalidate($middleware, $page);
         }
 
         // Apply Vary headers from site config (Vary is always site-wide, not per-page)
@@ -148,13 +142,7 @@ class CacheControlContentControllerExtension extends Extension
             $this->applySharedMaxAge($middleware, $siteConfig);
             $this->applyStaleDirectives($middleware, $siteConfig);
 
-            // must-revalidate is on by default in every cacheable state, so a grace period
-            // clears it explicitly.
-            if (StaleDirectives::hasGracePeriod($siteConfig)) {
-                $middleware->setMustRevalidate(false);
-            } elseif ($siteConfig->EnableMustRevalidate) {
-                $middleware->setMustRevalidate(true);
-            }
+            $this->applyMustRevalidate($middleware, $siteConfig);
         }
 
         // Apply Vary headers
@@ -229,6 +217,20 @@ class CacheControlContentControllerExtension extends Extension
         foreach (StaleDirectives::resolveAll($source) as $directive => $seconds) {
             $middleware->setStateDirective($states, $directive, $seconds > 0 ? $seconds : false);
         }
+    }
+
+    /**
+     * Turn must-revalidate on only when the box is ticked and no grace period is set, and explicitly off otherwise.
+     *
+     * The middleware sets must-revalidate on every cacheable state by default, so leaving it unset would send it.
+     *
+     * @param HTTPCacheControlMiddleware $middleware The middleware singleton
+     * @param SiteTree|SiteConfig $source The object supplying the cache settings
+     * @return void
+     */
+    protected function applyMustRevalidate(HTTPCacheControlMiddleware $middleware, SiteConfig|SiteTree $source): void
+    {
+        $middleware->setMustRevalidate((bool)$source->EnableMustRevalidate && !StaleDirectives::hasGracePeriod($source));
     }
 
     /**

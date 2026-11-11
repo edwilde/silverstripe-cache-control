@@ -19,6 +19,7 @@
 - Optional cache inheritance: a page's settings can apply to all descendants (`enable_cache_inheritance`, off by default)
 - CDN cache duration (`s-maxage`): gives CDNs a longer cache lifetime than browsers, public cache type only
 - Draft cache reduction: pages with unpublished changes get a short max-age until published, which also caps a CDN cache duration
+- Versioned site-wide defaults: a project defines the SiteConfig policy in YAML and `dev/build` applies it to every row whose stored version is lower (`cache_control_defaults_version`, `cache_control_defaults`)
 - Conditional field visibility using DisplayLogic
 - Performance-optimised with minimal database queries
 
@@ -39,6 +40,7 @@
 src/
 ├── StaleDirectives.php                            # Grace-period presets, resolution, validation and CMS notices
 ├── SharedMaxAge.php                               # CDN cache duration (s-maxage) presets, resolution, validation and CMS notice
+├── SiteConfigDefaults.php                         # Versioned project defaults: resolution, key and value validation, assignment to SiteConfig rows
 └── Extensions/
     ├── CacheControlSiteConfigExtension.php       # Site-wide cache settings UI
     ├── CacheControlPageExtension.php             # Page-level override UI
@@ -67,6 +69,7 @@ src/
    - Set cache duration (max-age or no-store)
    - Apply the CDN cache duration (`applySharedMaxAge()`): resolve `SharedMaxAge::forSource()` (0 unless the source's `CacheType` is public) and set `s-maxage` on `STATE_PUBLIC` only, so a session downgrade to private never emits it; a resolved value of 0 removes any `s-maxage` set elsewhere on every non-disabled state
    - Apply `stale-while-revalidate` / `stale-if-error` (`applyStaleDirectives()`) and turn off `must-revalidate` when either is set
+   - Apply `must-revalidate` (`applyMustRevalidate()`): on only when `EnableMustRevalidate` is ticked and no grace period is set, explicitly off otherwise
    - Apply Vary headers based on CMS configuration (always read from SiteConfig)
 5. **Draft cache reduction** (`applyDraftCacheReduction()`): if `EnableDraftCacheReduction` is on and the page's `HasPendingDraftChanges` flag is set, `max-age` drops to `draft_cache_max_age` (default 10s), which the framework's `Expires` then follows, and an existing `s-maxage` on `STATE_PUBLIC` is capped to the same value. The flag is written on save and cleared on publish, so this costs no extra query.
 6. **Middleware processes response** → nswdpc module applies configured headers, respecting:
@@ -98,6 +101,7 @@ src/
 'VaryCookie' => 'Boolean'                              // Vary: Cookie (default: false)
 'VaryAuthorization' => 'Boolean'                       // Vary: Authorization (default: false)
 'EnableDraftCacheReduction' => 'Boolean'               // Shorten max-age on pages with unpublished changes (default: true)
+'CacheControlDefaultsVersion' => 'Int'                 // Version of the project defaults last applied to this row (default: 0)
 ```
 
 **SiteTree Table Extensions** (cache type/duration/max-age/CDN-cache-duration/must-revalidate/grace-period fields as SiteConfig, plus):
@@ -109,7 +113,17 @@ src/
 
 Note: Page-level extensions don't include Vary headers - those are site-wide only.
 
-**YAML config** (on `SilverStripe\CMS\Model\SiteTree`): `enable_cache_inheritance` (default `false`) and `draft_cache_max_age` (default `10`).
+**YAML config**: on `SilverStripe\CMS\Model\SiteTree`, `enable_cache_inheritance` (default `false`) and `draft_cache_max_age` (default `10`); on `SilverStripe\SiteConfig\SiteConfig`, `cache_control_defaults_version` (default `0`) and `cache_control_defaults` (default `{}`).
+
+### Versioned Defaults
+
+`Edwilde\CacheControl\SiteConfigDefaults` (a final static helper) applies a project-defined policy to SiteConfig rows. A project sets `cache_control_defaults_version` (int) and `cache_control_defaults` (SiteConfig field name => value) in its own config fragment, recommended `After: '#edwilde-cache-control'`. The module's YAML sets neither key: the private statics on `CacheControlSiteConfigExtension` supply the defaults (0 and `[]`), so a fragment applies whatever its load order. `CacheControlDefaultsVersion` on each row records the version last applied.
+
+- **Configured** means a version above 0 and a non-empty map. Anything else is a no-op, and keys are not checked.
+- **Build hook**: `CacheControlSiteConfigExtension::onRequireDefaultRecords()` calls `SiteConfigDefaults::applyToAll()`, which assigns the map and the version to every row whose stored version is lower, across all subsites. `SiteConfigDefaults::allRows()` supplies the rows: it reads the IDs straight from the SiteConfig table, then loads the rows with `byIDs()`, so a per-subsite filter on SiteConfig queries does not hide any. A higher stored version is left alone. Every due row is assigned and validated before any row is written, so an invalid value throws `ValidationException` naming the row ID and the field messages, with nothing written. If a database error interrupts the writes, rows not yet written keep their lower version and the next build applies them.
+- **New-row hook**: `onAfterPopulateDefaults()` calls `SiteConfigDefaults::assign()` on a new SiteConfig in memory, so the row is written with the map and the version. It does not validate, so an invalid value throws when the row is written. `SiteConfig::requireDefaultRecords()` fires the build hook before it creates the first row, so on a fresh install the build hook finds no rows and the new-row hook covers the first one.
+- **Keys** are the extension's own `$db` fields except `CacheControlDefaultsVersion`. Any other key throws `InvalidArgumentException`, even when no row is due, and on every `SiteConfig::create()` while defaults are configured (new subsite rows, a project's own tests). At version 0 an unknown key is ignored. A field added to the extension's `$db` becomes a valid key with no further change; add it to the key list in the README.
+- **Enums**: `assign()` casts values for enum fields to strings, because the CMS 6 enum validator rejects integers, so YAML `MaxAgePreset: 300` works.
 
 ### Cache Header Generation Logic
 
@@ -140,7 +154,7 @@ Located in both `CacheControlSiteConfigExtension::getCacheControlHeader()` and `
 - `s-maxage` is emitted on `STATE_PUBLIC` only, via `setStateDirective([STATE_PUBLIC], 's-maxage', ...)`, never via the middleware's `setSharedMaxAge()`. That helper writes all three non-disabled states, so a session downgrade to private would otherwise emit `private, s-maxage=...`, which the private cache type never should. The resolved value is also 0 unless the source's `CacheType` is public, so project code forcing `publicCache(true)` on a private configuration still gets no `s-maxage`, matching the preview.
 - `HTTPCacheControlMiddleware::$allowed_directives` is a `@config` list. `setStateDirective()` throws for any name not in it, so a new directive (e.g. `stale-while-revalidate`, `stale-if-error`) must first be appended to that list in `_config/config.yml`. The framework's own docblock names this as the extension point.
 - `must-revalidate` and the RFC 5861 stale directives are mutually exclusive in effect: `must-revalidate` forbids reusing a stale response without revalidation, so a header carrying both has no grace period. Whenever a stale directive is emitted, `must-revalidate` must be omitted, in both the controller emission and the CMS header preview.
-- The middleware's built-in `stateDirectives` table sets `must-revalidate => true` on every cacheable state, so omitting it means calling `setMustRevalidate(false)`, not just declining to call `setMustRevalidate(true)`.
+- The middleware's built-in `stateDirectives` table sets `must-revalidate => true` on every cacheable state, so omitting it means calling `setMustRevalidate(false)`, not just declining to call `setMustRevalidate(true)`. `applyMustRevalidate()` does this for the page, inherited and site paths alike: it sets must-revalidate on only when the box is ticked and no grace period is set, and explicitly off otherwise, so an unticked box with no grace period sends no `must-revalidate`.
 - `setStateDirective()` removes a directive only for the value `false`. An integer `0` is stored and rendered as `name=0`, so a grace period of zero must be passed as `false`.
 - `Edwilde\CacheControl\StaleDirectives` resolves the preset/custom pairs for both grace directives and is the single source used by the SiteConfig preview, the Page preview and the controller. It also owns the custom-value range check (`validate()`, 1 second to `MAX_SECONDS`) the editor explainer (`infoField()`) and the private-cache notice (`privateNoticeField()`, shown only while the cache type is private) that both extensions share.
 - `Edwilde\CacheControl\SharedMaxAge` follows the same single-source pattern for the CDN cache duration, reusing `StaleDirectives::resolve()` and `StaleDirectives::MAX_SECONDS` rather than re-implementing the preset/custom logic. Its `infoField()` displays only while the cache type is public and the duration is max-age.
@@ -268,6 +282,13 @@ After:
 SilverStripe\SiteConfig\SiteConfig:
   extensions:
     - Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension
+  # Versioned project defaults, applied on dev/build (see Versioned Defaults).
+  # A project sets them in its own fragment; this module sets neither.
+  # cache_control_defaults_version: 1
+  # cache_control_defaults:
+  #   EnableCacheControl: true
+  #   CacheType: public
+  #   MaxAgePreset: 300
 
 SilverStripe\CMS\Model\SiteTree:
   extensions:

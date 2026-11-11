@@ -6,6 +6,7 @@ use Edwilde\CacheControl\Extensions\CacheControlContentControllerExtension;
 use Edwilde\CacheControl\Extensions\CacheControlPageExtension;
 use Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension;
 use Edwilde\CacheControl\SharedMaxAge;
+use Edwilde\CacheControl\Tests\DefaultsConfig;
 use SilverStripe\CMS\Controllers\ContentController;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\HTTPRequest;
@@ -663,6 +664,110 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
     }
 
     /**
+     * Site settings with the must-revalidate box unticked and no grace period send no must-revalidate.
+     */
+    public function testSiteSettingsOmitMustRevalidateWhenUnticked(): void
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = false;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $this->assertFalse($this->getMiddleware()->getDirective('must-revalidate'));
+    }
+
+    /**
+     * Site settings with the must-revalidate box ticked and a grace period send no must-revalidate.
+     */
+    public function testSiteSettingsOmitMustRevalidateWhenAGracePeriodIsSet(): void
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'maxage';
+        $siteConfig->MaxAgePreset = '120';
+        $siteConfig->EnableMustRevalidate = true;
+        $siteConfig->StaleWhileRevalidatePreset = '86400';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $this->assertFalse($this->getMiddleware()->getDirective('must-revalidate'));
+    }
+
+    /**
+     * A page override with the must-revalidate box unticked and no grace period sends no must-revalidate.
+     */
+    public function testPageOverrideOmitsMustRevalidateWhenUnticked(): void
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->EnableMustRevalidate = false;
+        $page->write();
+
+        ContentController::create($page)->doInit();
+
+        $this->assertFalse($this->getMiddleware()->getDirective('must-revalidate'));
+    }
+
+    /**
+     * A page override with the must-revalidate box ticked and no grace period sends must-revalidate.
+     */
+    public function testPageOverrideSendsMustRevalidateWhenTicked(): void
+    {
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'maxage';
+        $page->MaxAgePreset = '120';
+        $page->EnableMustRevalidate = true;
+        $page->write();
+
+        ContentController::create($page)->doInit();
+
+        $this->assertTrue($this->getMiddleware()->getDirective('must-revalidate'));
+    }
+
+    /**
+     * A child page inheriting from a parent with the box unticked and no grace period sends no must-revalidate.
+     */
+    public function testInheritedSettingsOmitMustRevalidateWhenParentUnticked(): void
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+        $parent = $this->objFromFixture(SiteTree::class, 'archive');
+        $parent->EnableMustRevalidate = false;
+        $parent->write();
+
+        ContentController::create($this->objFromFixture(SiteTree::class, 'archive_child'))->doInit();
+
+        $this->assertFalse($this->getMiddleware()->getDirective('must-revalidate'));
+    }
+
+    /**
+     * A child page inheriting from a parent with the box ticked and no grace period sends must-revalidate.
+     */
+    public function testInheritedSettingsSendMustRevalidateWhenParentTicked(): void
+    {
+        SiteTree::config()->set('enable_cache_inheritance', true);
+
+        ContentController::create($this->objFromFixture(SiteTree::class, 'archive_child'))->doInit();
+
+        $this->assertTrue($this->getMiddleware()->getDirective('must-revalidate'));
+    }
+
+    /**
      * A grace period of zero must not surface as "stale-while-revalidate=0".
      */
     public function testZeroGracePeriodIsNotEmitted()
@@ -1055,6 +1160,30 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
 
         $this->assertNull($response->getHeader('Expires'));
         $this->assertStringContainsString('no-store', $response->getHeader('Cache-Control'));
+    }
+
+    /**
+     * A SiteConfig below the configured defaults version applies the configured state, max-age and unticked must-revalidate to the cache middleware once the build has run.
+     */
+    public function testBuildAppliesConfiguredDefaultsToAPageRequest(): void
+    {
+        SiteTree::config()->set('enable_cache_inheritance', false);
+        DefaultsConfig::set(1, [
+            'EnableCacheControl' => true,
+            'CacheType' => 'public',
+            'MaxAgePreset' => 300,
+            'EnableMustRevalidate' => false,
+        ]);
+
+        SiteConfig::singleton()->requireDefaultRecords();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        ContentController::create($page)->doInit();
+
+        $middleware = $this->getMiddleware();
+        $this->assertSame(HTTPCacheControlMiddleware::STATE_PUBLIC, $middleware->getState());
+        $this->assertSame(300, $middleware->getDirective('max-age'));
+        $this->assertFalse($middleware->getDirective('must-revalidate'));
     }
 
     /**

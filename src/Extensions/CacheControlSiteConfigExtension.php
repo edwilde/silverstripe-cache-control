@@ -13,6 +13,7 @@
  * - Configure max-age value in seconds
  * - Enable must-revalidate directive
  * - Conditional field visibility using display logic
+ * - Apply versioned, project-defined defaults to SiteConfig rows (see SiteConfigDefaults)
  *
  * @package Edwilde\CacheControl
  * @author Ed Wilde
@@ -21,8 +22,11 @@
 namespace Edwilde\CacheControl\Extensions;
 
 use Edwilde\CacheControl\SharedMaxAge;
+use Edwilde\CacheControl\SiteConfigDefaults;
 use Edwilde\CacheControl\StaleDirectives;
+use InvalidArgumentException;
 use SilverStripe\Core\Extension;
+use SilverStripe\Core\Validation\ValidationException;
 use SilverStripe\Core\Validation\ValidationResult;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\DropdownField;
@@ -42,6 +46,25 @@ use UncleCheese\DisplayLogic\Forms\Wrapper;
  */
 class CacheControlSiteConfigExtension extends Extension
 {
+    /**
+     * Version of the project-defined cache control policy in `cache_control_defaults`.
+     *
+     * A SiteConfig row whose stored version is lower receives the policy on dev/build. Zero applies nothing.
+     *
+     * @config
+     * @var int
+     */
+    private static int $cache_control_defaults_version = 0;
+
+    /**
+     * Cache control field values to apply to SiteConfig rows whose stored version is lower than the
+     * configured version, keyed by SiteConfig field name.
+     *
+     * @config
+     * @var array<string, mixed>
+     */
+    private static array $cache_control_defaults = [];
+
     /**
      * Database fields for site-wide cache control
      *
@@ -65,6 +88,7 @@ class CacheControlSiteConfigExtension extends Extension
         'VaryCookie' => 'Boolean',
         'VaryAuthorization' => 'Boolean',
         'EnableDraftCacheReduction' => 'Boolean',
+        'CacheControlDefaultsVersion' => 'Int',
     ];
 
     /**
@@ -93,6 +117,7 @@ class CacheControlSiteConfigExtension extends Extension
         'VaryCookie' => false,
         'VaryAuthorization' => false,
         'EnableDraftCacheReduction' => true,
+        'CacheControlDefaultsVersion' => 0,
     ];
 
     /**
@@ -448,6 +473,29 @@ class CacheControlSiteConfigExtension extends Extension
     public function updateValidate(ValidationResult $result): void
     {
         $this->doValidateMaxAge($result);
+    }
+
+    /**
+     * Apply the configured defaults to SiteConfig rows below the configured version during dev/build
+     *
+     * @return void
+     * @throws InvalidArgumentException When a configured key is not a field the project may set
+     * @throws ValidationException When a due row is invalid with the defaults assigned
+     */
+    public function onRequireDefaultRecords(): void
+    {
+        SiteConfigDefaults::applyToAll();
+    }
+
+    /**
+     * Give a newly created SiteConfig the configured defaults and version without writing it
+     *
+     * @return void
+     * @throws InvalidArgumentException When a configured key is not a field the project may set
+     */
+    public function onAfterPopulateDefaults(): void
+    {
+        SiteConfigDefaults::assign($this->owner);
     }
 
     private function doValidateMaxAge($result): void

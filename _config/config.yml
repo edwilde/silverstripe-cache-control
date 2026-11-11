@@ -7,6 +7,19 @@ After:
 SilverStripe\SiteConfig\SiteConfig:
   extensions:
     - Edwilde\CacheControl\Extensions\CacheControlSiteConfigExtension
+  # Site-wide cache control policy defined in code and applied to every SiteConfig row on dev/build.
+  # A project sets a version above 0 and a map of SiteConfig field names to values in its own config
+  # fragment, for example:
+  #
+  # cache_control_defaults_version: 1
+  # cache_control_defaults:
+  #   EnableCacheControl: true
+  #   CacheType: public
+  #   MaxAgePreset: 300
+  #
+  # A row whose stored version is lower than the configured one receives the map, overwriting those
+  # fields, and is stamped with the version, so bump the version to re-apply. This module sets
+  # neither key, so version 0 and an empty map, which apply nothing, hold until a project sets them.
 
 SilverStripe\CMS\Model\SiteTree:
   extensions:

@@ -430,6 +430,64 @@ class CacheControlContentControllerExtensionTest extends SapphireTest
     }
 
     /**
+     * A site-wide no-store page with pending draft changes keeps no-store and gets no max-age or Expires.
+     */
+    public function testDraftReductionKeepsSiteNoStore(): void
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->CacheType = 'public';
+        $siteConfig->CacheDuration = 'nostore';
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->HasPendingDraftChanges = true;
+
+        $this->assertResponseIsNoStore($page);
+    }
+
+    /**
+     * A page override set to no-store with pending draft changes keeps no-store and gets no max-age or Expires.
+     */
+    public function testDraftReductionKeepsPageOverrideNoStore(): void
+    {
+        $siteConfig = SiteConfig::current_site_config();
+        $siteConfig->EnableCacheControl = true;
+        $siteConfig->EnableDraftCacheReduction = true;
+        $siteConfig->write();
+
+        $page = $this->objFromFixture(SiteTree::class, 'test_page');
+        $page->OverrideCacheControl = true;
+        $page->EnableCacheControl = true;
+        $page->CacheType = 'public';
+        $page->CacheDuration = 'nostore';
+        $page->HasPendingDraftChanges = true;
+
+        $this->assertResponseIsNoStore($page);
+    }
+
+    /**
+     * Assert the finished response for a page carries no-store, no max-age and no Expires header.
+     *
+     * @param SiteTree $page The page to render
+     * @return void
+     */
+    private function assertResponseIsNoStore(SiteTree $page): void
+    {
+        $controller = ContentController::create($page);
+        $controller->doInit();
+
+        $response = $controller->getResponse();
+        $this->getMiddleware()->applyToResponse($response);
+
+        $cacheControl = $response->getHeader('Cache-Control');
+        $this->assertStringContainsString('no-store', $cacheControl);
+        $this->assertStringNotContainsString('max-age', $cacheControl);
+        $this->assertNull($response->getHeader('Expires'));
+    }
+
+    /**
      * The draft_cache_max_age config should be respected when reducing max-age.
      */
     public function testCustomDraftMaxAgeViaConfig()

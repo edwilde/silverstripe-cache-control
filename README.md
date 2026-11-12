@@ -168,6 +168,8 @@ This feature is controlled by the "Reduce cache time for pages with unpublished 
 3. When the editor publishes, the normal cache time is restored
 4. If the editor discards draft changes, the normal cache time is also restored
 
+A page set to **No Store**, or with caching turned off, is left as it is: it was never cached, so there is nothing to shorten.
+
 The reduced cache time (default 10 seconds) can be overridden via YAML config:
 
 ```yaml

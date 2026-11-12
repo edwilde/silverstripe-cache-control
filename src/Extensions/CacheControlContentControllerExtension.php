@@ -157,6 +157,7 @@ class CacheControlContentControllerExtension extends Extension
      * already loaded in the page object — zero additional database queries.
      *
      * @param SiteTree $page The current page
+     * @return void
      */
     protected function applyDraftCacheReduction(SiteTree $page)
     {
@@ -166,9 +167,10 @@ class CacheControlContentControllerExtension extends Extension
             return;
         }
 
-        // Skip if cache is already disabled — nothing to reduce
+        // Skip when the cache is disabled or no-store is set
         $middleware = HTTPCacheControlMiddleware::singleton();
-        if ($middleware->getState() === HTTPCacheControlMiddleware::STATE_DISABLED) {
+        $cacheDisabled = $middleware->getState() === HTTPCacheControlMiddleware::STATE_DISABLED;
+        if ($cacheDisabled || $middleware->getDirective('no-store')) {
             return;
         }
 
